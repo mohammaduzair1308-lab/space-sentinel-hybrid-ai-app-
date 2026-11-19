@@ -1,0 +1,298 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidLanguage(lang) {
+      return lang in ['ur', 'en', 'hi', 'te', 'kn'];
+    }
+
+    function isValidProfile(data, userId) {
+      return data.keys().hasAll(['ownerId', 'preferredLanguage', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'preferredLanguage', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && isValidLanguage(data.preferredLanguage);
+    }
+
+    function isValidConversation(data, userId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'title',
+          'language',
+          'lastMessagePreview',
+          'messageCount',
+          'createdAt',
+          'updatedAt',
+          'lastMessageAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'title',
+          'language',
+          'lastMessagePreview',
+          'messageCount',
+          'createdAt',
+          'updatedAt',
+          'lastMessageAt'
+        ])
+        && data.ownerId is string
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 140
+        && isValidLanguage(data.language)
+        && data.lastMessagePreview is string
+        && data.lastMessagePreview.size() <= 240
+        && data.messageCount is int
+        && data.messageCount >= 0
+        && data.messageCount <= 5000;
+    }
+
+    function isValidMessage(data, userId, conversationId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'conversationId',
+          'sender',
+          'text',
+          'language',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'conversationId',
+          'sender',
+          'text',
+          'provider',
+          'language',
+          'createdAt'
+        ])
+        && data.ownerId is string
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.conversationId is string
+        && data.conversationId == conversationId
+        && data.sender in ['user', 'assistant']
+        && data.text is string
+        && data.text.size() >= 1
+        && data.text.size() <= 8000
+        && isValidLanguage(data.language)
+        && (!('provider' in data) || (data.provider is string && data.provider.size() <= 60));
+    }
+
+    function isValidFavorite(data, userId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'kind',
+          'title',
+          'summary',
+          'source',
+          'sourceUrl',
+          'recordedAtLabel',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'kind',
+          'title',
+          'summary',
+          'source',
+          'sourceUrl',
+          'flareClass',
+          'kpIndex',
+          'recordedAtLabel',
+          'createdAt'
+        ])
+        && data.ownerId is string
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.kind in ['telemetry', 'alert']
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 160
+        && data.summary is string
+        && data.summary.size() >= 1
+        && data.summary.size() <= 800
+        && data.source in ['live-noaa', 'offline-cache', 'simulated']
+        && data.sourceUrl is string
+        && data.sourceUrl.size() >= 1
+        && data.sourceUrl.size() <= 300
+        && data.recordedAtLabel is string
+        && data.recordedAtLabel.size() >= 1
+        && data.recordedAtLabel.size() <= 100
+        && (!('flareClass' in data) || (data.flareClass is string && data.flareClass.size() <= 24))
+        && (!('kpIndex' in data) || (data.kpIndex is number && data.kpIndex >= 0 && data.kpIndex <= 9));
+    }
+
+    match /users/{userId}/private/{docId} {
+      allow get: if isValidId(userId)
+        && isValidId(docId)
+        && docId == 'profile'
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid;
+
+      allow list: if false;
+
+      allow create: if isValidId(userId)
+        && isValidId(docId)
+        && docId == 'profile'
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isValidId(docId)
+        && docId == 'profile'
+        && isVerifiedUser()
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid
+        && isValidProfile(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['preferredLanguage', 'updatedAt']);
+
+      allow delete: if isValidId(userId)
+        && isValidId(docId)
+        && docId == 'profile'
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    match /users/{userId}/conversations/{conversationId} {
+      allow get: if isValidId(userId)
+        && isValidId(conversationId)
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid;
+
+      allow list: if isValidId(userId)
+        && isOwner(userId)
+        && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isValidId(userId)
+        && isValidId(conversationId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidConversation(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().lastMessageAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isValidId(conversationId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid
+        && isValidConversation(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().language == existing().language
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'updatedAt'])
+          || (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'lastMessagePreview',
+              'messageCount',
+              'lastMessageAt',
+              'updatedAt'
+            ])
+            && incoming().lastMessageAt == request.time
+          )
+        );
+
+      allow delete: if isValidId(userId)
+        && isValidId(conversationId)
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid;
+
+      match /messages/{messageId} {
+        allow get: if isValidId(userId)
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && isOwner(userId)
+          && existing().ownerId == request.auth.uid;
+
+        allow list: if isValidId(userId)
+          && isValidId(conversationId)
+          && isOwner(userId)
+          && resource.data.ownerId == request.auth.uid
+          && resource.data.conversationId == conversationId;
+
+        allow create: if isValidId(userId)
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidMessage(incoming(), userId, conversationId)
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId)).data.ownerId == request.auth.uid;
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(conversationId)
+          && isValidId(messageId)
+          && isOwner(userId)
+          && existing().ownerId == request.auth.uid;
+      }
+    }
+
+    match /users/{userId}/favorites/{favoriteId} {
+      allow get: if isValidId(userId)
+        && isValidId(favoriteId)
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid;
+
+      allow list: if isValidId(userId)
+        && isOwner(userId)
+        && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isValidId(userId)
+        && isValidId(favoriteId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidFavorite(incoming(), userId)
+        && incoming().createdAt == request.time;
+
+      allow update: if false;
+
+      allow delete: if isValidId(userId)
+        && isValidId(favoriteId)
+        && isOwner(userId)
+        && existing().ownerId == request.auth.uid;
+    }
+  }
+}

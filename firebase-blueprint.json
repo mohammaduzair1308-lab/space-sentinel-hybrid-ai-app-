@@ -1,0 +1,202 @@
+{
+  "entities": {
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Private user preference settings stored strictly under the authenticated user's path.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "enum": ["ur", "en", "hi", "te", "kn"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "preferredLanguage", "updatedAt"]
+    },
+    "ChatConversation": {
+      "title": "ChatConversation",
+      "description": "A user-owned Space Helper conversation thread with immutable language binding.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "language": {
+          "type": "string",
+          "enum": ["ur", "en", "hi", "te", "kn"]
+        },
+        "lastMessagePreview": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "messageCount": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "title",
+        "language",
+        "lastMessagePreview",
+        "messageCount",
+        "createdAt",
+        "updatedAt",
+        "lastMessageAt"
+      ]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "An individual message belonging to a parent ChatConversation.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "conversationId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sender": {
+          "type": "string",
+          "enum": ["user", "assistant"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "language": {
+          "type": "string",
+          "enum": ["ur", "en", "hi", "te", "kn"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "conversationId", "sender", "text", "language", "createdAt"]
+    },
+    "FavoriteSpaceItem": {
+      "title": "FavoriteSpaceItem",
+      "description": "A user-bookmarked official solar telemetry reading or space weather alert.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["telemetry", "alert"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 800
+        },
+        "source": {
+          "type": "string",
+          "enum": ["live-noaa", "offline-cache", "simulated"]
+        },
+        "sourceUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "flareClass": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "kpIndex": {
+          "type": "number"
+        },
+        "recordedAtLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "kind",
+        "title",
+        "summary",
+        "source",
+        "sourceUrl",
+        "recordedAtLabel",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Private preference document isolated strictly to the owning authenticated user."
+    },
+    "/users/{userId}/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/ChatConversation" },
+      "description": "User-owned Space Helper chat threads."
+    },
+    "/users/{userId}/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Chronological messages inside a user-owned conversation."
+    },
+    "/users/{userId}/favorites/{favoriteId}": {
+      "schema": { "$ref": "#/entities/FavoriteSpaceItem" },
+      "description": "User-saved favorite solar readings and NOAA space alerts."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Space Sentinel Hybrid AI",
+  "description": "Futuristic space control room for real-time solar flare and GPS disruption alerts, offline edge hybrid AI diagnostics, and multilingual emergency voice broadcasts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
