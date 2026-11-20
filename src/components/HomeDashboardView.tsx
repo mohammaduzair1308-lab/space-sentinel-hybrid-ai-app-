@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Activity,
   ArrowRight,
@@ -56,6 +56,16 @@ export const HomeDashboardView: React.FC<HomeDashboardViewProps> = ({
   onOpenAlerts,
 }) => {
   const [expandedCard, setExpandedCard] = useState<'flare' | 'kp' | 'wind' | 'gps' | null>(null);
+  const [, setAgeTick] = useState(0);
+
+  const showWarningBanner =
+    offlineMode || fetchError || (solar !== null && solar.source === 'offline-cache');
+
+  useEffect(() => {
+    if (!showWarningBanner || !solar) return;
+    const timer = setInterval(() => setAgeTick((n) => n + 1), 30000);
+    return () => clearInterval(timer);
+  }, [showWarningBanner, solar]);
 
   const toggleCard = (id: 'flare' | 'kp' | 'wind' | 'gps') => {
     setExpandedCard((prev) => (prev === id ? null : id));
@@ -84,9 +94,6 @@ export const HomeDashboardView: React.FC<HomeDashboardViewProps> = ({
     ? formatFullTimestampForLanguage(solar.fetchedAtIso, language) || t.notAvailableShort
     : t.notAvailableShort;
   const cachedAgeText = solar ? formatAgeForLanguage(solar.fetchedAtIso, language) : '';
-
-  const showWarningBanner =
-    offlineMode || fetchError || (solar !== null && solar.source === 'offline-cache');
 
   const discrepancyKind = solar?.feedDiscrepancyKind ?? 'none';
   const showDiscrepancyNote = Boolean(solar && discrepancyKind !== 'none' && solar.source !== 'simulated');

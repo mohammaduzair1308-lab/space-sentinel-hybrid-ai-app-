@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Bookmark,
@@ -67,6 +67,16 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   onReturnLive,
 }) => {
   const [trainingOpen, setTrainingOpen] = useState(false);
+  const [, setAgeTick] = useState(0);
+
+  const showWarning =
+    offlineMode || fetchError || (solar !== null && solar.source === 'offline-cache');
+
+  useEffect(() => {
+    if (!showWarning || !solar) return;
+    const timer = setInterval(() => setAgeTick((n) => n + 1), 30000);
+    return () => clearInterval(timer);
+  }, [showWarning, solar]);
 
   const severity = solar?.severity ?? 'nominal';
   const savedTitles = new Set(favorites.map((f) => f.title));
@@ -74,8 +84,6 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
     ? formatFullTimestampForLanguage(solar.fetchedAtIso, language) || t.notAvailableShort
     : t.notAvailableShort;
   const cachedAgeText = solar ? formatAgeForLanguage(solar.fetchedAtIso, language) : '';
-  const showWarning =
-    offlineMode || fetchError || (solar !== null && solar.source === 'offline-cache');
 
   const discrepancyKind = solar?.feedDiscrepancyKind ?? 'none';
   const discrepancyText =

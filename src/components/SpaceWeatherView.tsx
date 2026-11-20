@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Activity,
   BookmarkPlus,
@@ -56,6 +56,16 @@ export const SpaceWeatherView: React.FC<SpaceWeatherViewProps> = ({
   onExportHtml,
 }) => {
   const [activeTopic, setActiveTopic] = useState<SpaceWeatherTopic>('flares');
+  const [, setAgeTick] = useState(0);
+
+  const showWarning =
+    offlineMode || fetchError || (solar !== null && solar.source === 'offline-cache');
+
+  useEffect(() => {
+    if (!showWarning || !solar) return;
+    const timer = setInterval(() => setAgeTick((n) => n + 1), 30000);
+    return () => clearInterval(timer);
+  }, [showWarning, solar]);
 
   const getTopicIcon = (topic: SpaceWeatherTopic) => {
     switch (topic) {
@@ -115,8 +125,6 @@ export const SpaceWeatherView: React.FC<SpaceWeatherViewProps> = ({
     ? formatFullTimestampForLanguage(solar.fetchedAtIso, language) || t.notAvailableShort
     : t.notAvailableShort;
   const cachedAgeText = solar ? formatAgeForLanguage(solar.fetchedAtIso, language) : '';
-  const showWarning =
-    offlineMode || fetchError || (solar !== null && solar.source === 'offline-cache');
 
   return (
     <div className="space-y-6">

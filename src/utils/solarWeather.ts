@@ -336,30 +336,110 @@ interface NoaaScaleEntry {
   G?: { Scale?: string | null; Text?: string | null };
 }
 
-async function requestSolarProxyOnce(): Promise<{
-  payload: {
-    source: string;
-    fetchedAt: string;
-    officialSourceUrl?: string;
-    partial?: boolean;
-    kpJson: Array<{ time_tag: string; kp_index?: number; estimated_kp?: number }>;
-    xrayJson: Array<{ time_tag: string; flux: number; energy?: string }>;
-    plasmaJson: Array<
-      | { time_tag?: string; active?: boolean; proton_speed?: number | null; proton_density?: number | null }
-      | Array<string | number | null>
-    >;
-    alertsJson: Array<{ product_id?: string; issue_datetime?: string; message?: string }>;
-    scalesJson: Record<string, NoaaScaleEntry> | null;
+interface KpRecord {
+  time_tag?: string;
+  kp_index?: number | string;
+  estimated_kp?: number | string;
+  Kp?: number | string;
+  kp?: number | string;
+}
+
+interface XrayRecord {
+  time_tag?: string;
+  flux?: number;
+  energy?: string;
+}
+
+interface PlasmaObjectRecord {
+  time_tag?: string;
+  TimeStamp?: string;
+  active?: boolean;
+  proton_speed?: number | string | null;
+  WindSpeed?: number | string | null;
+  proton_density?: number | string | null;
+}
+
+interface SolarProxyPayload {
+  source: string;
+  fetchedAt: string;
+  officialSourceUrl?: string;
+  partial?: boolean;
+  observationTimes?: {
+    kpObservedAtIso?: string | null;
+    xrayObservedAtIso?: string | null;
+    windObservedAtIso?: string | null;
+    scalesUpdatedAtIso?: string | null;
   };
+  kpJson: KpRecord[];
+  xrayJson: XrayRecord[];
+  plasmaJson: Array<PlasmaObjectRecord | Array<string | number | null>>;
+  alertsJson: Array<{ product_id?: string; issue_datetime?: string; message?: string }>;
+  scalesJson: Record<string, NoaaScaleEntry> | null;
+}
+
+function extractKpValue(record: KpRecord | undefined | null): number | null {
+  if (!record) return null;
+  const raw = record.estimated_kp ?? record.kp_index ?? record.Kp ?? record.kp;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const num = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(num) ? Math.min(9, Math.max(0, +num.toFixed(1))) : null;
+}
+
+function getTimeMs(tag: string | undefined): number {
+  const dt = parseNoaaTimestampUtc(tag);
+  return dt ? dt.getTime() : 0;
+}
+
+function pickLatestValidRecord<T extends { time_tag?: string }>(
+  items: T[],
+  isValid: (item: T) => boolean
+): T | undefined {
+  let best: T | undefined;
+  let bestMs = -1;
+  for (const item of items) {
+    if (!isValid(item)) continue;
+    const ms = getTimeMs(item.time_tag);
+    if (best === undefined || ms >= bestMs) {
+      best = item;
+      bestMs = ms;
+    }
+  }
+  return best;
+}
+
+function findNearestKpValue(kpList: KpRecord[], targetMs: number, fallbackKp: number): number {
+  if (kpList.length === 0 || targetMs <= 0) return fallbackKp;
+  let bestVal = fallbackKp;
+  let bestDiff = Number.POSITIVE_INFINITY;
+  for (const item of kpList) {
+    const val = extractKpValue(item);
+    if (val === null) continue;
+    const ms = getTimeMs(item.time_tag);
+    if (ms <= 0) continue;
+    const diff = Math.abs(ms - targetMs);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestVal = val;
+    }
+  }
+  return bestVal;
+}
+
+async function requestSolarProxyOnce(timeoutMs = 25000): Promise<{
+  payload: SolarProxyPayload;
 }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8500);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch('/api/solar/live', { signal: controller.signal });
+    const res = await fetch('/api/solar/live', {
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    const payload = await res.json();
+    const payload = (await res.json()) as SolarProxyPayload;
     return { payload };
   } finally {
     clearTimeout(timeout);
@@ -380,20 +460,21 @@ export async function fetchLiveSolarWeather(
     };
   }
 
-  let payload: Awaited<ReturnType<typeof requestSolarProxyOnce>>['payload'] | null = null;
+  let payload: SolarProxyPayload | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await requestSolarProxyOnce();
+      const timeoutMs = attempt === 0 ? 25000 : 28000;
+      const res = await requestSolarProxyOnce(timeoutMs);
       payload = res.payload;
       break;
     } catch {
       if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 450));
+        await new Promise((r) => setTimeout(r, 700));
       }
     }
   }
 
-  if (!payload) {
+  if (!payload || payload.source !== 'live-noaa') {
     const cached = loadCachedSolarState();
     const stillOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     return {
@@ -403,73 +484,125 @@ export async function fetchLiveSolarWeather(
     };
   }
 
-  const kpJson = payload.kpJson ?? [];
-  const xrayJson = payload.xrayJson ?? [];
-  const longWaveXray = xrayJson.filter((d) => !d.energy || d.energy.includes('0.1-0.8'));
-  const latestXray = longWaveXray[longWaveXray.length - 1] ?? xrayJson[xrayJson.length - 1];
-  const latestKp = kpJson[kpJson.length - 1];
+  const kpJson = Array.isArray(payload.kpJson)
+    ? [...payload.kpJson].sort((a, b) => getTimeMs(a.time_tag) - getTimeMs(b.time_tag))
+    : [];
+  const xrayJson = Array.isArray(payload.xrayJson)
+    ? [...payload.xrayJson].sort((a, b) => getTimeMs(a.time_tag) - getTimeMs(b.time_tag))
+    : [];
 
-  const kpObservedAtIso = parseNoaaTimestampUtc(latestKp?.time_tag)?.toISOString();
-  const xrayObservedAtIso = parseNoaaTimestampUtc(latestXray?.time_tag)?.toISOString();
+  const validXray = xrayJson.filter(
+    (d) => typeof d.flux === 'number' && Number.isFinite(d.flux) && d.flux > 0
+  );
+  const longWaveXray = validXray.filter((d) => !d.energy || d.energy.includes('0.1-0.8'));
+  const xraySeries = longWaveXray.length > 0 ? longWaveXray : validXray;
+
+  const latestXray = pickLatestValidRecord(
+    xraySeries,
+    (d) => typeof d.flux === 'number' && Number.isFinite(d.flux) && d.flux > 0
+  );
+  const latestKp = pickLatestValidRecord(kpJson, (d) => extractKpValue(d) !== null);
+
+  const kpObservedAtIso =
+    parseNoaaTimestampUtc(latestKp?.time_tag)?.toISOString() ??
+    parseNoaaTimestampUtc(payload.observationTimes?.kpObservedAtIso)?.toISOString();
+  const xrayObservedAtIso =
+    parseNoaaTimestampUtc(latestXray?.time_tag)?.toISOString() ??
+    parseNoaaTimestampUtc(payload.observationTimes?.xrayObservedAtIso)?.toISOString();
 
   const flux =
     typeof latestXray?.flux === 'number' && Number.isFinite(latestXray.flux)
       ? Math.max(1e-9, latestXray.flux)
       : null;
-  const rawKp = latestKp?.estimated_kp ?? latestKp?.kp_index;
-  const kp =
-    typeof rawKp === 'number' && Number.isFinite(rawKp)
-      ? Math.min(9, Math.max(0, +rawKp.toFixed(1)))
-      : null;
+  const kp = extractKpValue(latestKp);
 
   let realWindSpeed: number | null = null;
   let realProtonDensity: number | null = null;
   let windObservedAtIso: string | undefined;
+  let bestWindMs = -1;
+
   const plasmaRows = Array.isArray(payload.plasmaJson) ? payload.plasmaJson : [];
-  for (let i = 0; i < plasmaRows.length; i++) {
-    const row = plasmaRows[i];
+  for (const row of plasmaRows) {
     if (Array.isArray(row)) {
       if (row[0] === 'time_tag') continue;
-      const densityVal = Number(row[1]);
       const speedVal = Number(row[2]);
-      if (!windObservedAtIso && typeof row[0] === 'string') {
-        windObservedAtIso = parseNoaaTimestampUtc(row[0])?.toISOString();
-      }
-      if (realProtonDensity === null && Number.isFinite(densityVal) && densityVal > 0) {
-        realProtonDensity = +densityVal.toFixed(1);
-      }
-      if (realWindSpeed === null && Number.isFinite(speedVal) && speedVal > 0) {
+      const densityVal = Number(row[1]);
+      const rowMs = typeof row[0] === 'string' ? getTimeMs(row[0]) : 0;
+      if (Number.isFinite(speedVal) && speedVal > 0 && rowMs >= bestWindMs) {
+        bestWindMs = rowMs;
         realWindSpeed = Math.round(speedVal);
+        realProtonDensity =
+          Number.isFinite(densityVal) && densityVal > 0 ? +densityVal.toFixed(1) : realProtonDensity;
+        if (typeof row[0] === 'string') {
+          windObservedAtIso = parseNoaaTimestampUtc(row[0])?.toISOString();
+        }
       }
     } else if (row && typeof row === 'object') {
-      if (row.active === false) continue;
-      const speedVal = Number(row.proton_speed);
+      const speedVal = Number(row.proton_speed ?? row.WindSpeed);
       const densityVal = Number(row.proton_density);
-      if (!windObservedAtIso && typeof row.time_tag === 'string') {
-        windObservedAtIso = parseNoaaTimestampUtc(row.time_tag)?.toISOString();
-      }
-      if (realWindSpeed === null && Number.isFinite(speedVal) && speedVal > 0) {
+      const tag = row.time_tag ?? row.TimeStamp;
+      const rowMs = typeof tag === 'string' ? getTimeMs(tag) : 0;
+      const hasValidSpeed = Number.isFinite(speedVal) && speedVal > 0;
+      if (row.active !== false && hasValidSpeed && rowMs >= bestWindMs) {
+        bestWindMs = rowMs;
         realWindSpeed = Math.round(speedVal);
-      }
-      if (realProtonDensity === null && Number.isFinite(densityVal) && densityVal > 0) {
-        realProtonDensity = +densityVal.toFixed(1);
+        realProtonDensity =
+          Number.isFinite(densityVal) && densityVal > 0 ? +densityVal.toFixed(1) : null;
+        if (typeof tag === 'string') {
+          windObservedAtIso = parseNoaaTimestampUtc(tag)?.toISOString();
+        }
       }
     }
-    if (realWindSpeed !== null && realProtonDensity !== null) break;
+  }
+
+  // Fallback pass over plasmaRows if all available entries had active === false
+  if (realWindSpeed === null) {
+    for (const row of plasmaRows) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+      const speedVal = Number(row.proton_speed ?? row.WindSpeed);
+      const densityVal = Number(row.proton_density);
+      const tag = row.time_tag ?? row.TimeStamp;
+      const rowMs = typeof tag === 'string' ? getTimeMs(tag) : 0;
+      if (Number.isFinite(speedVal) && speedVal > 0 && rowMs >= bestWindMs) {
+        bestWindMs = rowMs;
+        realWindSpeed = Math.round(speedVal);
+        realProtonDensity =
+          Number.isFinite(densityVal) && densityVal > 0 ? +densityVal.toFixed(1) : null;
+        if (typeof tag === 'string') {
+          windObservedAtIso = parseNoaaTimestampUtc(tag)?.toISOString();
+        }
+      }
+    }
+  }
+
+  if (!windObservedAtIso) {
+    windObservedAtIso = parseNoaaTimestampUtc(payload.observationTimes?.windObservedAtIso)?.toISOString();
+  }
+
+  const currentScale = payload.scalesJson?.['0'];
+  const hasAnyTelemetry =
+    kp !== null || flux !== null || realWindSpeed !== null || Boolean(currentScale?.DateStamp);
+
+  if (!hasAnyTelemetry) {
+    const cached = loadCachedSolarState();
+    return {
+      state: cached,
+      ok: false,
+      errorKind: 'unreachable',
+    };
   }
 
   const { flareClass, radioScale: computedRadio } = classifyFlare(flux);
   const { severity: kpSeverity, geoScale: computedGeo } = classifyGeomagnetic(kp);
 
-  const currentScale = payload.scalesJson?.['0'];
   const radioScale = currentScale?.R?.Scale ? `R${currentScale.R.Scale}` : computedRadio;
   const geoScale = currentScale?.G?.Scale ? `G${currentScale.G.Scale}` : computedGeo;
   const radiationScale = currentScale?.S?.Scale ? `S${currentScale.S.Scale}` : 'S0';
 
   const scalesUpdatedAtIso =
-    currentScale?.DateStamp && currentScale?.TimeStamp
+    (currentScale?.DateStamp && currentScale?.TimeStamp
       ? parseNoaaTimestampUtc(`${currentScale.DateStamp}T${currentScale.TimeStamp}`)?.toISOString()
-      : undefined;
+      : undefined) ?? parseNoaaTimestampUtc(payload.observationTimes?.scalesUpdatedAtIso)?.toISOString();
 
   const forecastDays: SolarForecastDay[] = ([1, 2, 3] as const)
     .map((offset): SolarForecastDay | null => {
@@ -555,18 +688,18 @@ export async function fetchLiveSolarWeather(
     feedDiscrepancyKind = 'partial-feed';
   }
 
-  const sampleStep = Math.max(1, Math.floor(longWaveXray.length / 18));
   const history: SolarDataPoint[] = [];
-  if (longWaveXray.length > 0) {
-    for (let i = 0; i < longWaveXray.length && history.length < 18; i += sampleStep) {
-      const point = longWaveXray[i];
-      const kpMatch =
-        kpJson[Math.min(kpJson.length - 1, Math.floor((i / Math.max(1, longWaveXray.length)) * kpJson.length))];
+  if (xraySeries.length > 0) {
+    const sampleStep = Math.max(1, Math.floor(xraySeries.length / 18));
+    for (let i = 0; i < xraySeries.length && history.length < 18; i += sampleStep) {
+      const point = xraySeries[i];
       const dt = parseNoaaTimestampUtc(point.time_tag);
+      const pointMs = dt ? dt.getTime() : 0;
+      const pointFlux = typeof point.flux === 'number' && Number.isFinite(point.flux) ? point.flux : 1e-8;
       history.push({
         timestamp: !dt ? localizeDigits(i, 'en') : formatClock24(dt),
-        flux: Math.max(1e-8, point.flux),
-        kp: +(kpMatch?.estimated_kp ?? kpMatch?.kp_index ?? kp ?? 0).toFixed(1),
+        flux: Math.max(1e-8, pointFlux),
+        kp: findNearestKpValue(kpJson, pointMs, kp ?? 0),
       });
     }
   } else if (kpJson.length > 0) {
@@ -577,7 +710,7 @@ export async function fetchLiveSolarWeather(
       history.push({
         timestamp: !dt ? localizeDigits(i, 'en') : formatClock24(dt),
         flux: 0,
-        kp: +(point.estimated_kp ?? point.kp_index ?? 0).toFixed(1),
+        kp: extractKpValue(point) ?? 0,
       });
     }
   }
@@ -592,7 +725,7 @@ export async function fetchLiveSolarWeather(
           ? 'minor'
           : 'nominal';
 
-  const fetchedDate = payload.fetchedAt ? new Date(payload.fetchedAt) : new Date();
+  const fetchedDate = parseNoaaTimestampUtc(payload.fetchedAt) ?? new Date();
   const liveState: SolarWeatherState = {
     source: 'live-noaa',
     severity: overallSeverity,

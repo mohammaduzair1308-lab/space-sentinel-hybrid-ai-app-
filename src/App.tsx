@@ -138,6 +138,12 @@ export default function App() {
     typeof navigator !== 'undefined' ? !navigator.onLine : false
   );
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetchingRef = useRef<boolean>(false);
+  const solarRef = useRef<SolarWeatherState | null>(solar);
+
+  useEffect(() => {
+    solarRef.current = solar;
+  }, [solar]);
 
   const t = LOCALIZATION[language];
   const langMeta = LANGUAGE_LIST.find((l) => l.code === language) ?? LANGUAGE_LIST[0];
@@ -149,6 +155,36 @@ export default function App() {
       setConnectionRestored(false);
     }, 6000);
   }, []);
+
+  const performLiveSync = useCallback(
+    async (forceAttempt = false) => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      setIsFetchingSolar(true);
+      try {
+        const hadDisconnect = wasDisconnectedRef.current;
+        const { state, ok, errorKind } = await fetchLiveSolarWeather(false, {
+          forceNetworkAttempt: forceAttempt,
+        });
+        if (state) setSolar(state);
+        setOfflineMode(errorKind === 'offline');
+        setFetchError(!ok);
+
+        if (ok) {
+          if (hadDisconnect) {
+            wasDisconnectedRef.current = false;
+            triggerRestoredNotice();
+          }
+        } else {
+          wasDisconnectedRef.current = true;
+        }
+      } finally {
+        isFetchingRef.current = false;
+        setIsFetchingSolar(false);
+      }
+    },
+    [triggerRestoredNotice]
+  );
 
   // Sync document direction & language
   useEffect(() => {
@@ -281,24 +317,12 @@ export default function App() {
       .catch(() => {});
   }, [user, activeConversationId, conversations]);
 
-  // Network state, local model probe, and live NOAA fetch + automatic reconnection recovery
+  // Network state, local model probe, and live NOAA fetch + automatic recovery & periodic refresh
   useEffect(() => {
-    const onOnline = async () => {
+    const onOnline = () => {
       setOfflineMode(manualOfflineTest);
       if (manualOfflineTest) return;
-
-      setIsFetchingSolar(true);
-      const { state, ok } = await fetchLiveSolarWeather(false, { forceNetworkAttempt: true });
-      if (state) setSolar(state);
-      setFetchError(!ok);
-      setIsFetchingSolar(false);
-
-      if (ok && wasDisconnectedRef.current) {
-        wasDisconnectedRef.current = false;
-        triggerRestoredNotice();
-      } else if (!ok) {
-        wasDisconnectedRef.current = true;
-      }
+      void performLiveSync(true);
     };
 
     const onOffline = () => {
@@ -307,33 +331,45 @@ export default function App() {
       setOfflineMode(true);
     };
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || manualOfflineTest || !navigator.onLine) return;
+      const current = solarRef.current;
+      if (current?.source === 'simulated') return;
+      const fetchedMs = current?.fetchedAtIso ? Date.parse(current.fetchedAtIso) : 0;
+      const isStale = !current || current.source === 'offline-cache' || Date.now() - fetchedMs > 120000;
+      if (isStale) {
+        void performLiveSync(false);
+      }
+    };
+
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     probeOnDeviceLocalModel().then((res) => setLocalModelSupport(res.support));
 
-    if (navigator.onLine) {
-      setIsFetchingSolar(true);
-      fetchLiveSolarWeather(false).then(({ state, ok }) => {
-        if (state) setSolar(state);
-        setFetchError(!ok);
-        if (!ok) {
-          wasDisconnectedRef.current = true;
-        }
-        setIsFetchingSolar(false);
-      });
+    if (!manualOfflineTest && navigator.onLine) {
+      void performLiveSync(false);
     } else {
       wasDisconnectedRef.current = true;
       setOfflineMode(true);
     }
 
+    const refreshInterval = setInterval(() => {
+      if (manualOfflineTest || !navigator.onLine) return;
+      if (solarRef.current?.source === 'simulated') return;
+      void performLiveSync(false);
+    }, 180000);
+
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearInterval(refreshInterval);
       if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
       stopVoiceBroadcast();
     };
-  }, [manualOfflineTest, triggerRestoredNotice]);
+  }, [manualOfflineTest, performLiveSync]);
 
   const speakWithSettings = useCallback(
     async (
@@ -396,23 +432,29 @@ export default function App() {
   };
 
   const handleRefreshLive = async () => {
+    if (isFetchingRef.current) return;
     // Allow explicit user retry even if offline test flag or stale offline event was set
     const hadDisconnect = offlineMode || fetchError || wasDisconnectedRef.current;
     setManualOfflineTest(false);
+    isFetchingRef.current = true;
     setIsFetchingSolar(true);
-    const { state, ok, errorKind } = await fetchLiveSolarWeather(false, {
-      forceNetworkAttempt: true,
-    });
-    if (state) setSolar(state);
-    setOfflineMode(errorKind === 'offline');
-    setFetchError(!ok);
-    setIsFetchingSolar(false);
+    try {
+      const { state, ok, errorKind } = await fetchLiveSolarWeather(false, {
+        forceNetworkAttempt: true,
+      });
+      if (state) setSolar(state);
+      setOfflineMode(errorKind === 'offline');
+      setFetchError(!ok);
 
-    if (ok && hadDisconnect) {
-      wasDisconnectedRef.current = false;
-      triggerRestoredNotice();
-    } else if (!ok) {
-      wasDisconnectedRef.current = true;
+      if (ok && hadDisconnect) {
+        wasDisconnectedRef.current = false;
+        triggerRestoredNotice();
+      } else if (!ok) {
+        wasDisconnectedRef.current = true;
+      }
+    } finally {
+      isFetchingRef.current = false;
+      setIsFetchingSolar(false);
     }
   };
 

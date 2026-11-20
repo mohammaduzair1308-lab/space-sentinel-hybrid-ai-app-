@@ -37,29 +37,236 @@ function getSharedAiClient(apiKey: string): GoogleGenAI {
   });
 }
 
-async function fetchJsonWithTimeout(url: string, timeoutMs = 7000): Promise<unknown | null> {
+async function fetchJsonWithTimeout(url: string, timeoutMs = 10000): Promise<unknown | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return null;
+    const res = await fetch(url, {
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: {
+        'User-Agent': 'SpaceSentinelHybridAI/1.0 (NOAA SWPC Client)',
+        Accept: 'application/json',
+      },
+    });
+    if (!res.ok) {
+      console.warn(`[NOAA] HTTP ${res.status} ${res.statusText} from ${url}`);
+      return null;
+    }
     return await res.json();
-  } catch {
+  } catch (err) {
+    const isAbort = err instanceof Error && err.name === 'AbortError';
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[NOAA] ${isAbort ? `Timeout after ${timeoutMs}ms` : 'Request failed'} for ${url}: ${msg}`);
     return null;
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchJsonWithRetry(url: string, timeoutMs = 7000, retries = 1): Promise<unknown | null> {
+async function fetchJsonWithRetry(url: string, timeoutMs = 10000, retries = 1): Promise<unknown | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const result = await fetchJsonWithTimeout(url, timeoutMs);
     if (result !== null) return result;
     if (attempt < retries) {
-      await new Promise((r) => setTimeout(r, 350));
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
   return null;
+}
+
+function parseNoaaUtcMsServer(raw: unknown): number {
+  if (typeof raw !== 'string') return 0;
+  const trimmed = raw.trim();
+  if (!trimmed) return 0;
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(trimmed)) {
+    const ms = Date.parse(`${trimmed.replace(' ', 'T')}Z`);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const ms = Date.parse(`${trimmed}T00:00:00Z`);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
+  const ms = Date.parse(trimmed);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+function toIsoOrNull(raw: unknown): string | null {
+  const ms = parseNoaaUtcMsServer(raw);
+  return ms > 0 ? new Date(ms).toISOString() : null;
+}
+
+interface SolarLivePayload {
+  source: 'live-noaa';
+  fetchedAt: string;
+  officialSourceUrl: string;
+  partial: boolean;
+  observationTimes: {
+    kpObservedAtIso: string | null;
+    xrayObservedAtIso: string | null;
+    windObservedAtIso: string | null;
+    scalesUpdatedAtIso: string | null;
+  };
+  kpJson: Array<Record<string, unknown>>;
+  xrayJson: Array<Record<string, unknown>>;
+  plasmaJson: Array<Record<string, unknown>>;
+  alertsJson: Array<Record<string, unknown>>;
+  scalesJson: Record<string, unknown> | null;
+}
+
+let inFlightSolarFetch: Promise<SolarLivePayload | null> | null = null;
+
+async function fetchLiveNoaaPayload(): Promise<SolarLivePayload | null> {
+  const [kpPrimary, xrayPrimary, windPrimary, alertsRaw, scalesRaw] = await Promise.all([
+    fetchJsonWithRetry('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json', 10000, 1),
+    fetchJsonWithRetry('https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json', 10000, 1),
+    fetchJsonWithRetry('https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json', 14000, 1),
+    fetchJsonWithRetry('https://services.swpc.noaa.gov/products/alerts.json', 9000, 1),
+    fetchJsonWithRetry('https://services.swpc.noaa.gov/products/noaa-scales.json', 9000, 1),
+  ]);
+
+  let kpSource: unknown = kpPrimary;
+  if (!Array.isArray(kpSource) || kpSource.length === 0) {
+    console.warn('[NOAA] Primary 1m Kp feed unavailable/empty, trying products/noaa-planetary-k-index.json');
+    kpSource = await fetchJsonWithRetry(
+      'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
+      9000,
+      1
+    );
+  }
+
+  const kpRows = (Array.isArray(kpSource) ? kpSource : [])
+    .filter((row): row is Record<string, unknown> => {
+      if (!row || typeof row !== 'object') return false;
+      const r = row as Record<string, unknown>;
+      const val = r.estimated_kp ?? r.kp_index ?? r.Kp ?? r.kp;
+      return typeof val === 'number' ? Number.isFinite(val) : Number.isFinite(Number(val));
+    })
+    .sort((a, b) => parseNoaaUtcMsServer(a.time_tag) - parseNoaaUtcMsServer(b.time_tag))
+    .slice(-36);
+
+  const xrayRowsAll = (Array.isArray(xrayPrimary) ? xrayPrimary : []).filter(
+    (row): row is Record<string, unknown> => {
+      if (!row || typeof row !== 'object') return false;
+      const r = row as Record<string, unknown>;
+      return typeof r.flux === 'number' && Number.isFinite(r.flux) && r.flux > 0;
+    }
+  );
+  const longWaveXray = xrayRowsAll.filter(
+    (r) => typeof r.energy !== 'string' || r.energy.includes('0.1-0.8')
+  );
+  const xrayRows = (longWaveXray.length > 0 ? longWaveXray : xrayRowsAll)
+    .sort((a, b) => parseNoaaUtcMsServer(a.time_tag) - parseNoaaUtcMsServer(b.time_tag))
+    .slice(-90);
+
+  let windRows: Array<Record<string, unknown>> = [];
+  if (Array.isArray(windPrimary)) {
+    const validObjects = windPrimary
+      .filter((row): row is Record<string, unknown> => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
+        const r = row as Record<string, unknown>;
+        const spd = Number(r.proton_speed);
+        return Number.isFinite(spd) && spd > 0;
+      })
+      .sort((a, b) => parseNoaaUtcMsServer(b.time_tag) - parseNoaaUtcMsServer(a.time_tag));
+
+    const activeRows = validObjects.filter((r) => r.active !== false);
+    windRows = (activeRows.length > 0 ? activeRows : validObjects).slice(0, 12);
+  }
+
+  if (windRows.length === 0) {
+    console.warn('[NOAA] Primary RTSW solar wind feed unavailable/empty, trying products/summary/solar-wind-speed.json');
+    const windFallback = await fetchJsonWithRetry(
+      'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json',
+      8000,
+      1
+    );
+    if (Array.isArray(windFallback)) {
+      windRows = windFallback
+        .filter((row): row is Record<string, unknown> => {
+          if (!row || typeof row !== 'object') return false;
+          const r = row as Record<string, unknown>;
+          const spd = Number(r.proton_speed ?? r.WindSpeed);
+          return Number.isFinite(spd) && spd > 0;
+        })
+        .map((r) => ({
+          time_tag: r.time_tag ?? r.TimeStamp ?? null,
+          proton_speed: Number(r.proton_speed ?? r.WindSpeed),
+          proton_density: r.proton_density ?? null,
+          active: true,
+        }))
+        .slice(0, 12);
+    } else if (windFallback && typeof windFallback === 'object') {
+      const r = windFallback as Record<string, unknown>;
+      const spd = Number(r.proton_speed ?? r.WindSpeed);
+      if (Number.isFinite(spd) && spd > 0) {
+        windRows = [
+          {
+            time_tag: r.time_tag ?? r.TimeStamp ?? null,
+            proton_speed: spd,
+            proton_density: r.proton_density ?? null,
+            active: true,
+          },
+        ];
+      }
+    }
+  }
+
+  const alertsRows = (Array.isArray(alertsRaw) ? alertsRaw : [])
+    .filter((row): row is Record<string, unknown> => Boolean(row && typeof row === 'object'))
+    .slice(0, 8);
+
+  const scalesObj =
+    scalesRaw && typeof scalesRaw === 'object' && !Array.isArray(scalesRaw)
+      ? (scalesRaw as Record<string, unknown>)
+      : null;
+
+  const hasKp = kpRows.length > 0;
+  const hasXray = xrayRows.length > 0;
+  const hasWind = windRows.length > 0;
+  const hasScales = scalesObj !== null;
+
+  if (!hasKp && !hasXray && !hasWind && !hasScales) {
+    console.error('[NOAA] All primary and backup NOAA SWPC feeds failed.');
+    return null;
+  }
+
+  const latestKp = kpRows[kpRows.length - 1];
+  const latestXray = xrayRows[xrayRows.length - 1];
+  const latestWind = windRows[0];
+  const scale0 =
+    scalesObj && scalesObj['0'] && typeof scalesObj['0'] === 'object'
+      ? (scalesObj['0'] as Record<string, unknown>)
+      : null;
+  const scalesUpdatedAtIso =
+    scale0?.DateStamp && scale0?.TimeStamp
+      ? toIsoOrNull(`${String(scale0.DateStamp)}T${String(scale0.TimeStamp)}`)
+      : null;
+
+  const partial = !hasKp || !hasXray || !hasWind;
+  if (partial) {
+    console.warn(
+      `[NOAA] Partial live payload: kp=${hasKp}, xray=${hasXray}, wind=${hasWind}, scales=${hasScales}`
+    );
+  }
+
+  return {
+    source: 'live-noaa',
+    fetchedAt: new Date().toISOString(),
+    officialSourceUrl: 'https://www.swpc.noaa.gov/',
+    partial,
+    observationTimes: {
+      kpObservedAtIso: toIsoOrNull(latestKp?.time_tag),
+      xrayObservedAtIso: toIsoOrNull(latestXray?.time_tag),
+      windObservedAtIso: toIsoOrNull(latestWind?.time_tag),
+      scalesUpdatedAtIso,
+    },
+    kpJson: kpRows,
+    xrayJson: xrayRows,
+    plasmaJson: windRows,
+    alertsJson: alertsRows,
+    scalesJson: scalesObj,
+  };
 }
 
 function classifyGeminiError(err: unknown): { status: number; errorCode: string; message: string } {
@@ -81,6 +288,7 @@ async function startServer() {
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/api/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     res.json({
       ok: true,
       geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
@@ -89,15 +297,17 @@ async function startServer() {
   });
 
   app.get('/api/solar/live', async (_req, res) => {
-    const [kpJson, xrayJson, plasmaJson, alertsJson, scalesJson] = await Promise.all([
-      fetchJsonWithRetry('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json'),
-      fetchJsonWithRetry('https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json'),
-      fetchJsonWithRetry('https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json'),
-      fetchJsonWithRetry('https://services.swpc.noaa.gov/products/alerts.json'),
-      fetchJsonWithRetry('https://services.swpc.noaa.gov/products/noaa-scales.json'),
-    ]);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
 
-    if (!kpJson && !xrayJson && !scalesJson) {
+    if (!inFlightSolarFetch) {
+      inFlightSolarFetch = fetchLiveNoaaPayload().finally(() => {
+        inFlightSolarFetch = null;
+      });
+    }
+
+    const payload = await inFlightSolarFetch;
+    if (!payload) {
       res.status(503).json({
         errorCode: 'noaa_unreachable',
         error: 'Unable to reach official space weather servers',
@@ -105,17 +315,7 @@ async function startServer() {
       return;
     }
 
-    res.json({
-      source: 'live-noaa',
-      fetchedAt: new Date().toISOString(),
-      officialSourceUrl: 'https://www.swpc.noaa.gov/',
-      partial: !kpJson || !xrayJson || !plasmaJson,
-      kpJson: Array.isArray(kpJson) ? kpJson.slice(-36) : [],
-      xrayJson: Array.isArray(xrayJson) ? xrayJson.slice(-90) : [],
-      plasmaJson: Array.isArray(plasmaJson) ? plasmaJson.slice(0, 12) : [],
-      alertsJson: Array.isArray(alertsJson) ? alertsJson.slice(0, 8) : [],
-      scalesJson: scalesJson ?? null,
-    });
+    res.json(payload);
   });
 
   app.post('/api/gemini/chat', async (req, res) => {
