@@ -1,6 +1,7 @@
 import {
   AiProviderKind,
   AlertCategory,
+  EasyMenuSection,
   FeedDiscrepancyKind,
   LanguageCode,
   LocalModelSupport,
@@ -315,6 +316,56 @@ export interface LocalizationBundle {
   chartAxisMedium: string;
   chartAxisQuiet: string;
   aiOfficialSourcePromptLabel: string;
+
+  // Simple Mode-Choice Welcome & Easy Use 6-Button Mode
+  welcomeEnglishSubtitle: string;
+  welcomeChooseHeading: string;
+  modeEasyOptionLetter: string;
+  modeEasyTitle: string;
+  modeEasySubtitle: string;
+  modeEasyBadge: string;
+  modeFullOptionLetter: string;
+  modeFullTitle: string;
+  modeFullSubtitle: string;
+  modeFullBadge: string;
+  switchToEasyBtn: string;
+  switchToFullBtn: string;
+  backToChoiceBtn: string;
+  easyPageTitle: string;
+  easyPageSubtitle: string;
+  easyBackBtn: string;
+  easyListenBtn: string;
+  easyStopBtn: string;
+  easyGuideVoiceBtn: string;
+  easyGuideVoiceScript: string;
+  easyVoiceCmdBtn: string;
+  easyVoiceCmdListening: string;
+  easyVoiceCmdHint: string;
+  easyVoiceCmdNotUnderstood: string;
+  easyVoiceCmdMatched: (num: string, title: string) => string;
+  easyMenuItems: Record<
+    EasyMenuSection,
+    {
+      title: string;
+      shortDesc: string;
+    }
+  >;
+  easyAiHeading: string;
+  easyAiSubheading: string;
+  easyAiQuickPrompts: string[];
+  easyAiVoiceAskBtn: string;
+  easyAllVoiceTitle: string;
+  easyAllVoiceSub: string;
+  easyNoWarningsTitle: string;
+  easyNoWarningsBody: string;
+  easyWarningsCountBody: (count: string) => string;
+  easyEarthCalmDetails: string[];
+  easyEarthMinorDetails: string[];
+  easyEarthStrongDetails: string[];
+  easySunFlareLabel: string;
+  easySunWindLabel: string;
+  easyTodayKpLabel: string;
+  easyForecastTomorrowPrefix: string;
 }
 
 export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
@@ -800,6 +851,88 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     chartAxisMedium: 'M (Med)',
     chartAxisQuiet: 'A/B (Calm)',
     aiOfficialSourcePromptLabel: 'Official data sources:',
+
+    welcomeEnglishSubtitle: 'Space Sentinel Hybrid AI',
+    welcomeChooseHeading: 'How would you like to use this app?',
+    modeEasyOptionLetter: 'A',
+    modeEasyTitle: 'Easy Use',
+    modeEasySubtitle: 'Large numbered buttons, very simple words, and clear voice guidance.',
+    modeEasyBadge: 'Best for beginners & voice',
+    modeFullOptionLetter: 'B',
+    modeFullTitle: 'Full Information',
+    modeFullSubtitle: 'Live charts, official scales, alerts feed, settings, and detailed AI chat.',
+    modeFullBadge: 'Charts & full tools',
+    switchToEasyBtn: 'Easy Mode',
+    switchToFullBtn: 'Full Info',
+    backToChoiceBtn: 'Mode Choice',
+    easyPageTitle: 'Easy Space Weather Menu',
+    easyPageSubtitle: 'Tap any large numbered button below, or speak a number from 1 to 6.',
+    easyBackBtn: 'Back',
+    easyListenBtn: 'Listen',
+    easyStopBtn: 'Stop Voice',
+    easyGuideVoiceBtn: 'Hear What Each Button Does',
+    easyGuideVoiceScript:
+      'Press 1 for today’s space weather. Press 2 for the condition of the Sun. Press 3 for effects on Earth and phone maps. Press 4 for danger warnings. Press 5 to listen to all updates in voice. Press 6 to ask AI any simple question.',
+    easyVoiceCmdBtn: 'Speak Command (1–6)',
+    easyVoiceCmdListening: 'Listening... Say "Press 1" or "Today’s weather"',
+    easyVoiceCmdHint: 'You can tap any button, or tap the mic and say "Press 1" or "Today’s weather".',
+    easyVoiceCmdNotUnderstood: 'Could not match a number (1 to 6). Tap any button below to open it.',
+    easyVoiceCmdMatched: (num, title) => `Opening ${num}: ${title}`,
+    easyMenuItems: {
+      today: {
+        title: "Today's Space Weather",
+        shortDesc: 'See right away if space weather is calm or stormy today.',
+      },
+      sun: {
+        title: 'Condition of the Sun',
+        shortDesc: 'Check sun flashes and solar wind speed in plain words.',
+      },
+      earth: {
+        title: 'Effects on Earth',
+        shortDesc: 'Know if phone maps, calls, radio, and electricity are safe.',
+      },
+      warnings: {
+        title: 'Danger Warnings',
+        shortDesc: 'Check active official storm warnings and upcoming days.',
+      },
+      'all-voice': {
+        title: 'Listen to All Info in Voice',
+        shortDesc: 'Hear a complete simple summary of today’s space report.',
+      },
+      ai: {
+        title: 'Ask AI a Question',
+        shortDesc: 'Tap a quick question or speak to get a simple answer.',
+      },
+    },
+    easyAiHeading: 'Ask a Simple Question',
+    easyAiSubheading: 'Tap any question below to get an answer right away, or speak using the mic.',
+    easyAiQuickPrompts: [
+      'Are phone maps and signals safe today?',
+      'Is there any storm on the Sun right now?',
+      'Could anything happen tomorrow?',
+    ],
+    easyAiVoiceAskBtn: 'Tap and Speak Your Question',
+    easyAllVoiceTitle: 'Complete Simple Summary',
+    easyAllVoiceSub: 'Press Listen below to hear the full update, or read it anytime.',
+    easyNoWarningsTitle: 'No Active Storm Warning',
+    easyNoWarningsBody: 'Everything is normal right now. Official space centers report no active danger warning.',
+    easyWarningsCountBody: (count) => `There are ${count} recent official notices listed below in plain words.`,
+    easyEarthCalmDetails: [
+      'Mobile phone calls, internet, and map apps work normally.',
+      'Airplanes, boats, and power lines face no space storm trouble today.',
+    ],
+    easyEarthMinorDetails: [
+      'Everyday phones and map apps keep working fine.',
+      'Very small space waves only reach far-north polar skies.',
+    ],
+    easyEarthStrongDetails: [
+      'Long-distance radio and high-latitude flights may see short signal trouble.',
+      'Normal phones on the ground usually stay safe; follow official notices.',
+    ],
+    easySunFlareLabel: 'Recent sun flash strength',
+    easySunWindLabel: 'Sun wind speed',
+    easyTodayKpLabel: 'Earth magnetic level (0 to 9)',
+    easyForecastTomorrowPrefix: 'Tomorrow forecast',
   },
 
   ur: {
@@ -1283,6 +1416,88 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     chartAxisMedium: 'درمیانی',
     chartAxisQuiet: 'پرسکون',
     aiOfficialSourcePromptLabel: 'تصدیق کے سرکاری لنک:',
+
+    welcomeEnglishSubtitle: 'Space Sentinel Hybrid AI',
+    welcomeChooseHeading: 'آپ کس طریقے سے استعمال کرنا چاہتے ہیں؟',
+    modeEasyOptionLetter: 'A',
+    modeEasyTitle: 'آسان استعمال',
+    modeEasySubtitle: 'بڑے نمبر والے بٹن، بہت آسان اردو اور آواز میں رہنمائی کے لیے۔',
+    modeEasyBadge: 'ابتدائی صارفین اور آواز کے لیے بہترین',
+    modeFullOptionLetter: 'B',
+    modeFullTitle: 'مکمل معلومات',
+    modeFullSubtitle: 'گراف، سائنسی تفصیل، سرکاری انتباہات اور مکمل اے آئی فیچرز کے لیے۔',
+    modeFullBadge: 'گراف اور تفصیلی معلومات',
+    switchToEasyBtn: 'آسان استعمال',
+    switchToFullBtn: 'مکمل معلومات',
+    backToChoiceBtn: 'طریقہ بدلیں',
+    easyPageTitle: 'آسان خلائی مینو',
+    easyPageSubtitle: 'نیچے کسی بھی بڑے بٹن کو دبائیں، یا بول کر ۱ سے ۶ تک نمبر بتائیں۔',
+    easyBackBtn: 'واپس',
+    easyListenBtn: 'سنیں',
+    easyStopBtn: 'آواز بند کریں',
+    easyGuideVoiceBtn: 'بٹنوں کی آواز میں رہنمائی سنیں',
+    easyGuideVoiceScript:
+      'آج کا خلائی موسم جاننے کے لیے ایک دبائیں۔ سورج کی حالت جاننے کے لیے دو دبائیں۔ زمین اور موبائل پر اثرات جاننے کے لیے تین دبائیں۔ خطرے کی وارننگ کے لیے چار دبائیں۔ تمام معلومات آواز میں سننے کے لیے پانچ دبائیں۔ اے آئی سے سوال پوچھنے کے لیے چھ دبائیں۔',
+    easyVoiceCmdBtn: 'بول کر نمبر بتائیں (۱ تا ۶)',
+    easyVoiceCmdListening: 'سن رہے ہیں... بولیں "ایک دبائیں" یا "آج کا موسم بتائیں"',
+    easyVoiceCmdHint: 'ہر فیچر ہاتھ سے دبا کر چلتا ہے؛ چاہیں تو بول کر "ایک دبائیں" یا "آج کا موسم بتائیں" بھی کہہ سکتے ہیں۔',
+    easyVoiceCmdNotUnderstood: 'نمبر سمجھ نہیں آیا۔ براہِ کرم ۱ سے ۶ تک کوئی بٹن ہاتھ سے دبائیں۔',
+    easyVoiceCmdMatched: (num, title) => `نمبر ${num} کھل رہا ہے: ${title}`,
+    easyMenuItems: {
+      today: {
+        title: 'آج کا خلائی موسم',
+        shortDesc: 'فوراً جانیں کہ آج خلا اور آسمان پرسکون ہیں یا طوفان آیا ہے۔',
+      },
+      sun: {
+        title: 'سورج کی حالت',
+        shortDesc: 'آسان لفظوں میں جانیں کہ سورج کی چمک اور ہوا کیسی چل رہی ہے۔',
+      },
+      earth: {
+        title: 'زمین پر اثرات',
+        shortDesc: 'جانیں کہ موبائل فون، نقشے، ریڈیو اور بجلی محفوظ ہیں یا نہیں۔',
+      },
+      warnings: {
+        title: 'خطرے کی وارننگ',
+        shortDesc: 'دیکھیں کہ سرکاری مرکز کی طرف سے کوئی خطرہ یا انتباہ تو نہیں۔',
+      },
+      'all-voice': {
+        title: 'تمام معلومات آواز میں سنیں',
+        shortDesc: 'آج کی پوری خبر آسان اردو میں آواز کے ساتھ سنیں۔',
+      },
+      ai: {
+        title: 'AI سے سوال پوچھیں',
+        shortDesc: 'لکھے بغیر بٹن دبا کر یا بول کر آسان اردو میں سوال پوچھیں۔',
+      },
+    },
+    easyAiHeading: 'آسان سوال پوچھیں',
+    easyAiSubheading: 'لکھنے کی ضرورت نہیں — نیچے کسی بھی سوال پر ہاتھ لگائیں یا بول کر پوچھیں۔',
+    easyAiQuickPrompts: [
+      'کیا آج موبائل کے نقشے اور سگنل محفوظ ہیں؟',
+      'کیا ابھی سورج پر کوئی طوفان آیا ہوا ہے؟',
+      'کیا کل کوئی خطرہ ہو سکتا ہے؟',
+    ],
+    easyAiVoiceAskBtn: 'دبائیں اور بول کر سوال پوچھیں',
+    easyAllVoiceTitle: 'آج کی تمام معلومات کا خلاصہ',
+    easyAllVoiceSub: 'سننے کے لیے نیچے "سنیں" کا بٹن دبائیں، یا یہاں آسان اردو میں پڑھیں۔',
+    easyNoWarningsTitle: 'کوئی خطرے کی وارننگ نہیں ہے',
+    easyNoWarningsBody: 'اس وقت حالات بالکل عام ہیں اور سرکاری مرکز کی طرف سے کوئی خطرے کی وارننگ جاری نہیں ہے۔',
+    easyWarningsCountBody: (count) => `اس وقت سرکاری مرکز کی ${count} حالیہ اطلاعات موجود ہیں جن کا آسان مطلب نیچے لکھا ہے۔`,
+    easyEarthCalmDetails: [
+      'موبائل فون، انٹرنیٹ اور راستہ بتانے والے نقشے بالکل عام طرح کام کر رہے ہیں۔',
+      'ہوائی جہاز، بحری سفر اور بجلی کی تاروں کے لیے آج کوئی خلائی خطرہ نہیں ہے۔',
+    ],
+    easyEarthMinorDetails: [
+      'روزمرہ کے موبائل فون اور نقشے بالکل ٹھیک کام کرتے رہیں گے۔',
+      'ہلکی ہلچل صرف زمین کے بہت دور شمالی قطبی علاقوں میں اثر دکھاتی ہے۔',
+    ],
+    easyEarthStrongDetails: [
+      'دور دراز کے ریڈیو اور قطب کے اوپر اڑنے والے جہازوں کے سگنل میں رکاوٹ آ سکتی ہے۔',
+      'زمین پر عام موبائل فون عموماً محفوظ رہتے ہیں؛ سرکاری ہدایات کا خیال رکھیں۔',
+    ],
+    easySunFlareLabel: 'سورج کی چمک کا درجہ',
+    easySunWindLabel: 'سورج کی ہوا کی رفتار',
+    easyTodayKpLabel: 'طوفان کا نمبر (۰ تا ۹)',
+    easyForecastTomorrowPrefix: 'کل کا امکان',
   },
 
   hi: {
@@ -1766,6 +1981,88 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     chartAxisMedium: 'मध्यम',
     chartAxisQuiet: 'शांत',
     aiOfficialSourcePromptLabel: 'सरकारी जानकारी के लिंक:',
+
+    welcomeEnglishSubtitle: 'Space Sentinel Hybrid AI',
+    welcomeChooseHeading: 'आप किस तरीके से इस्तेमाल करना चाहते हैं?',
+    modeEasyOptionLetter: 'A',
+    modeEasyTitle: 'आसान इस्तेमाल',
+    modeEasySubtitle: 'बड़े नंबर वाले बटन, बहुत आसान भाषा और आवाज़ में जानकारी के लिए।',
+    modeEasyBadge: 'शुरुआत और आवाज़ के लिए',
+    modeFullOptionLetter: 'B',
+    modeFullTitle: 'पूरी जानकारी',
+    modeFullSubtitle: 'ग्राफ़, वैज्ञानिक नंबर, सरकारी चेतावनी और पूरे AI फ़ीचर के लिए।',
+    modeFullBadge: 'चार्ट और पूरी जानकारी',
+    switchToEasyBtn: 'आसान मोड',
+    switchToFullBtn: 'पूरी जानकारी',
+    backToChoiceBtn: 'मोड बदलें',
+    easyPageTitle: 'आसान अंतरिक्ष मेनू',
+    easyPageSubtitle: 'नीचे कोई भी बड़ा बटन दबाएँ, या बोलकर १ से ६ नंबर चुनें।',
+    easyBackBtn: 'वापस',
+    easyListenBtn: 'सुनें',
+    easyStopBtn: 'आवाज़ बंद करें',
+    easyGuideVoiceBtn: 'हर बटन का मतलब आवाज़ में सुनें',
+    easyGuideVoiceScript:
+      'आज का अंतरिक्ष मौसम जानने के लिए एक दबाएँ। सूरज की हालत के लिए दो दबाएँ। धरती और मोबाइल पर असर के लिए तीन दबाएँ। खतरे की चेतावनी के लिए चार दबाएँ। सारी जानकारी आवाज़ में सुनने के लिए पाँच दबाएँ। AI से सवाल पूछने के लिए छह दबाएँ।',
+    easyVoiceCmdBtn: 'बोलकर नंबर चुनें (१–६)',
+    easyVoiceCmdListening: 'सुन रहे हैं... बोलें "एक दबाएँ" या "आज का मौसम"',
+    easyVoiceCmdHint: 'आप बटन दबाकर या बोलकर "एक दबाएँ" कहकर भी चुन सकते हैं।',
+    easyVoiceCmdNotUnderstood: 'नंबर समझ नहीं आया। कृपया नीचे दिए गए बटन को दबाएँ।',
+    easyVoiceCmdMatched: (num, title) => `नंबर ${num} खुल रहा है: ${title}`,
+    easyMenuItems: {
+      today: {
+        title: 'आज का अंतरिक्ष मौसम',
+        shortDesc: 'तुरंत जानें कि आज अंतरिक्ष शांत है या तूफ़ान है।',
+      },
+      sun: {
+        title: 'सूरज की हालत',
+        shortDesc: 'सरल शब्दों में जानें कि सूरज की चमक और हवा कैसी है।',
+      },
+      earth: {
+        title: 'धरती पर असर',
+        shortDesc: 'जानें कि मोबाइल, नक़्शे, रेडियो और बिजली सुरक्षित हैं या नहीं।',
+      },
+      warnings: {
+        title: 'ख़तरे की चेतावनी',
+        shortDesc: 'देखें कि कोई सरकारी चेतावनी या आने वाला ख़तरा तो नहीं।',
+      },
+      'all-voice': {
+        title: 'पूरी जानकारी आवाज़ में सुनें',
+        shortDesc: 'आज की पूरी रिपोर्ट आसान भाषा में सुनें।',
+      },
+      ai: {
+        title: 'AI से सवाल पूछें',
+        shortDesc: 'बिना लिखे बटन दबाकर या बोलकर सवाल पूछें।',
+      },
+    },
+    easyAiHeading: 'आसान सवाल पूछें',
+    easyAiSubheading: 'नीचे किसी भी सवाल को दबाएँ या माइक दबाकर बोलें।',
+    easyAiQuickPrompts: [
+      'क्या आज मोबाइल के नक़्शे और सिग्नल सुरक्षित हैं?',
+      'क्या अभी सूरज पर कोई तूफ़ान आया है?',
+      'क्या कल कोई ख़तरा हो सकता है?',
+    ],
+    easyAiVoiceAskBtn: 'दबाएँ और बोलकर सवाल पूछें',
+    easyAllVoiceTitle: 'आज की पूरी सरल रिपोर्ट',
+    easyAllVoiceSub: 'आवाज़ में सुनने के लिए नीचे "सुनें" दबाएँ।',
+    easyNoWarningsTitle: 'कोई ख़तरे की चेतावनी नहीं है',
+    easyNoWarningsBody: 'अभी हालात सामान्य हैं और सरकारी केंद्र से कोई चेतावनी नहीं है।',
+    easyWarningsCountBody: (count) => `अभी सरकारी केंद्र की ${count} ताज़ा सूचनाएँ नीचे सरल भाषा में हैं।`,
+    easyEarthCalmDetails: [
+      'मोबाइल फ़ोन, इंटरनेट और नक़्शे बिल्कुल सामान्य चल रहे हैं।',
+      'हवाई जहाज़ और बिजली की लाइनों को आज कोई अंतरिक्ष परेशानी नहीं है।',
+    ],
+    easyEarthMinorDetails: [
+      'आम मोबाइल फ़ोन और नक़्शे ठीक काम करते रहेंगे।',
+      'हल्की हलचल केवल ध्रुवीय ऊपरी आसमान तक सीमित रहती है।',
+    ],
+    easyEarthStrongDetails: [
+      'लंबी दूरी के रेडियो और ध्रुवीय उड़ानों में थोड़ी रुकावट आ सकती है।',
+      'ज़मीन पर आम फ़ोन सुरक्षित रहते हैं; सरकारी निर्देश देखें।',
+    ],
+    easySunFlareLabel: 'सूरज की चमक का स्तर',
+    easySunWindLabel: 'सूरज की हवा की रफ़्तार',
+    easyTodayKpLabel: 'तूफ़ान का नंबर (० से ९)',
+    easyForecastTomorrowPrefix: 'कल का अनुमान',
   },
 
   te: {
@@ -2247,6 +2544,88 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     chartAxisMedium: 'మధ్యస్థం',
     chartAxisQuiet: 'ప్రశాంతం',
     aiOfficialSourcePromptLabel: 'అధికారిక సమాచార లింకులు:',
+
+    welcomeEnglishSubtitle: 'Space Sentinel Hybrid AI',
+    welcomeChooseHeading: 'మీరు ఎలా ఉపయోగించాలనుకుంటున్నారు?',
+    modeEasyOptionLetter: 'A',
+    modeEasyTitle: 'సులభ ఉపయోగం',
+    modeEasySubtitle: 'పెద్ద సంఖ్య బటన్లు, సరళమైన మాటలు మరియు వాయిస్ మార్గదర్శకంతో.',
+    modeEasyBadge: 'కొత్తవారికి & వాయిస్‌కు ఉత్తమం',
+    modeFullOptionLetter: 'B',
+    modeFullTitle: 'పూర్తి సమాచారం',
+    modeFullSubtitle: 'గ్రాఫ్‌లు, పూర్తి డేటా, హెచ్చరికలు మరియు అన్ని AI ఫీచర్ల కోసం.',
+    modeFullBadge: 'చార్ట్‌లు & పూర్తి వివరాలు',
+    switchToEasyBtn: 'సులభ మోడ్',
+    switchToFullBtn: 'పూర్తి సమాచారం',
+    backToChoiceBtn: 'మోడ్ మార్చండి',
+    easyPageTitle: 'సులభ అంతరిక్ష మెనూ',
+    easyPageSubtitle: 'కింద ఉన్న పెద్ద బటన్‌ను నొక్కండి లేదా 1 నుండి 6 వరకు చెప్పండి.',
+    easyBackBtn: 'వెనక్కి',
+    easyListenBtn: 'వినండి',
+    easyStopBtn: 'ఆపండి',
+    easyGuideVoiceBtn: 'బటన్ల వివరాలు వాయిస్‌లో వినండి',
+    easyGuideVoiceScript:
+      'ఈరోజు అంతరిక్ష వాతావరణం కోసం 1 నొక్కండి. సూర్యుని స్థితి కోసం 2 నొక్కండి. భూమిపై ప్రభావం కోసం 3 నొక్కండి. ప్రమాద హెచ్చరికల కోసం 4 నొక్కండి. మొత్తం సమాచారం వినడానికి 5 నొక్కండి. AIని ప్రశ్న అడగడానికి 6 నొక్కండి.',
+    easyVoiceCmdBtn: 'మాట్లాడి ఎంచుకోండి (1–6)',
+    easyVoiceCmdListening: 'వింటున్నాము... "1 నొక్కండి" లేదా "ఈరోజు వాతావరణం" అని చెప్పండి',
+    easyVoiceCmdHint: 'అన్ని బటన్లను తాకి ఉపయోగించవచ్చు లేదా మైక్‌తో నంబర్ చెప్పవచ్చు.',
+    easyVoiceCmdNotUnderstood: 'నంబర్ అర్థం కాలేదు. దయచేసి కింద బటన్‌ను తాకండి.',
+    easyVoiceCmdMatched: (num, title) => `${num} తెరుస్తున్నాము: ${title}`,
+    easyMenuItems: {
+      today: {
+        title: 'ఈరోజు అంతరిక్ష వాతావరణం',
+        shortDesc: 'ఈరోజు అంతరిక్షం ప్రశాంతంగా ఉందా లేదా తుఫాను ఉందా తెలుసుకోండి.',
+      },
+      sun: {
+        title: 'సూర్యుని పరిస్థితి',
+        shortDesc: 'సూర్యుని మెరుపులు మరియు గాలి వేగాన్ని సరళంగా తెలుసుకోండి.',
+      },
+      earth: {
+        title: 'భూమిపై ప్రభావాలు',
+        shortDesc: 'మొబైల్, మ్యాప్స్, రేడియో మరియు విద్యుత్ సురక్షితమా తెలుసుకోండి.',
+      },
+      warnings: {
+        title: 'ప్రమాద హెచ్చరిక',
+        shortDesc: 'అధికారిక తుఫాను హెచ్చరికలు ఉన్నాయా లేదో చూడండి.',
+      },
+      'all-voice': {
+        title: 'మొత్తం సమాచారం వాయిస్‌లో వినండి',
+        shortDesc: 'ఈరోజు పూర్తి నివేదికను సరళంగా వినండి.',
+      },
+      ai: {
+        title: 'AIని ప్రశ్న అడగండి',
+        shortDesc: 'టైప్ చేయకుండా బటన్ నొక్కి లేదా మాట్లాడి అడగండి.',
+      },
+    },
+    easyAiHeading: 'సరళమైన ప్రశ్న అడగండి',
+    easyAiSubheading: 'కింద ఉన్న ప్రశ్నను నొక్కండి లేదా మైక్ నొక్కి మాట్లాడండి.',
+    easyAiQuickPrompts: [
+      'ఈరోజు మొబైల్ మ్యాప్స్ మరియు సిగ్నల్స్ సురక్షితంగా ఉన్నాయా?',
+      'ప్రస్తుతం సూర్యునిపై ఏదైనా తుఫాను ఉందా?',
+      'రేపు ఏదైనా ప్రమాదం ఉందా?',
+    ],
+    easyAiVoiceAskBtn: 'నొక్కి మీ ప్రశ్న మాట్లాడండి',
+    easyAllVoiceTitle: 'ఈరోజు పూర్తి సరళ సారాంశం',
+    easyAllVoiceSub: 'వినడానికి కింద "వినండి" బటన్ నొక్కండి.',
+    easyNoWarningsTitle: 'ప్రమాద హెచ్చరిక లేదు',
+    easyNoWarningsBody: 'ప్రస్తుతం అంతా సాధారణంగా ఉంది. అధికారిక ప్రమాద హెచ్చరిక లేదు.',
+    easyWarningsCountBody: (count) => `ప్రస్తుతం ${count} అధికారిక ప్రకటనలు కింద సరళంగా ఉన్నాయి.`,
+    easyEarthCalmDetails: [
+      'మొబైల్ ఫోన్లు, ఇంటర్నెట్ మరియు మ్యాప్స్ సాధారణంగా పనిచేస్తాయి.',
+      'విమానాలు మరియు విద్యుత్ లైన్లకు ఈరోజు ఇబ్బంది లేదు.',
+    ],
+    easyEarthMinorDetails: [
+      'సాధారణ ఫోన్లు మరియు మ్యాప్స్ బాగా పనిచేస్తాయి.',
+      'చిన్న తరంగాలు ఉత్తర ధ్రువ ఆకాశంలో మాత్రమే ఉంటాయి.',
+    ],
+    easyEarthStrongDetails: [
+      'దూర ప్రాంత రేడియో మరియు ధ్రువ విమానాల్లో స్వల్ప అంతరాయం ఉండవచ్చు.',
+      'భూమిపై సాధారణ ఫోన్లు సురక్షితం; అధికారిక సూచనలు చూడండి.',
+    ],
+    easySunFlareLabel: 'సూర్యుని మెరుపు స్థాయి',
+    easySunWindLabel: 'సూర్య గాలి వేగం',
+    easyTodayKpLabel: 'తుఫాను సంఖ్య (౦ నుండి ౯)',
+    easyForecastTomorrowPrefix: 'రేపటి అంచనా',
   },
 
   kn: {
@@ -2728,5 +3107,87 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     chartAxisMedium: 'ಮಧ್ಯಮ',
     chartAxisQuiet: 'ಶಾಂತ',
     aiOfficialSourcePromptLabel: 'ಅಧಿಕೃತ ಮಾಹಿತಿ ಲಿಂಕ್‌ಗಳು:',
+
+    welcomeEnglishSubtitle: 'Space Sentinel Hybrid AI',
+    welcomeChooseHeading: 'ನೀವು ಹೇಗೆ ಬಳಸಲು ಬಯಸುತ್ತೀರಿ?',
+    modeEasyOptionLetter: 'A',
+    modeEasyTitle: 'ಸುಲಭ ಬಳಕೆ',
+    modeEasySubtitle: 'ದೊಡ್ಡ ಸಂಖ್ಯೆಯ ಬಟನ್‌ಗಳು, ಸರಳ ಮಾತುಗಳು ಮತ್ತು ಧ್ವನಿ ಮಾರ್ಗದರ್ಶನದೊಂದಿಗೆ.',
+    modeEasyBadge: 'ಆರಂಭಿಕರಿಗೆ ಮತ್ತು ಧ್ವನಿಗೆ ಉತ್ತಮ',
+    modeFullOptionLetter: 'B',
+    modeFullTitle: 'ಪೂರ್ಣ ಮಾಹಿತಿ',
+    modeFullSubtitle: 'ಚಾರ್ಟ್‌ಗಳು, ವೈಜ್ಞಾನಿಕ ಡೇಟಾ, ಎಚ್ಚರಿಕೆಗಳು ಮತ್ತು ಪೂರ್ಣ AI ವೈಶಿಷ್ಟ್ಯಗಳಿಗಾಗಿ.',
+    modeFullBadge: 'ಚಾರ್ಟ್‌ಗಳು ಮತ್ತು ಪೂರ್ಣ ವಿವರ',
+    switchToEasyBtn: 'ಸುಲಭ ಮೋಡ್',
+    switchToFullBtn: 'ಪೂರ್ಣ ಮಾಹಿತಿ',
+    backToChoiceBtn: 'ವಿಧಾನ ಬದಲಿಸಿ',
+    easyPageTitle: 'ಸುಲಭ ಬಾಹ್ಯಾಕಾಶ ಮೆನು',
+    easyPageSubtitle: 'ಕೆಳಗಿನ ಯಾವುದೇ ದೊಡ್ಡ ಬಟನ್ ಒತ್ತಿ, ಅಥವಾ 1 ರಿಂದ 6 ಸಂಖ್ಯೆ ಹೇಳಿ.',
+    easyBackBtn: 'ಹಿಂದಕ್ಕೆ',
+    easyListenBtn: 'ಕೇಳಿ',
+    easyStopBtn: 'ನಿಲ್ಲಿಸಿ',
+    easyGuideVoiceBtn: 'ಬಟನ್‌ಗಳ ವಿವರ ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಿ',
+    easyGuideVoiceScript:
+      'ಇಂದಿನ ಬಾಹ್ಯಾಕಾಶ ಹವಾಮಾನಕ್ಕಾಗಿ 1 ಒತ್ತಿ. ಸೂರ್ಯನ ಸ್ಥಿತಿಗಾಗಿ 2 ಒತ್ತಿ. ಭೂಮಿಯ ಮೇಲಿನ ಪರಿಣಾಮಕ್ಕಾಗಿ 3 ಒತ್ತಿ. ಅಪಾಯದ ಎಚ್ಚರಿಕೆಗಾಗಿ 4 ಒತ್ತಿ. ಎಲ್ಲಾ ಮಾಹಿತಿ ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಲು 5 ಒತ್ತಿ. AIಗೆ ಪ್ರಶ್ನೆ ಕೇಳಲು 6 ಒತ್ತಿ.',
+    easyVoiceCmdBtn: 'ಮಾತನಾಡಿ ಆಯ್ಕೆಮಾಡಿ (1–6)',
+    easyVoiceCmdListening: 'ಕೇಳುತ್ತಿದ್ದೇವೆ... "1 ಒತ್ತಿ" ಅಥವಾ "ಇಂದಿನ ಹವಾಮಾನ" ಎಂದು ಹೇಳಿ',
+    easyVoiceCmdHint: 'ಎಲ್ಲಾ ಬಟನ್‌ಗಳನ್ನು ಸ್ಪರ್ಶಿಸಿ ಬಳಸಬಹುದು ಅಥವಾ ಮೈಕ್‌ನಲ್ಲಿ ಸಂಖ್ಯೆ ಹೇಳಬಹುದು.',
+    easyVoiceCmdNotUnderstood: 'ಸಂಖ್ಯೆ ತಿಳಿಯಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ.',
+    easyVoiceCmdMatched: (num, title) => `${num} ತೆರೆಯಲಾಗುತ್ತಿದೆ: ${title}`,
+    easyMenuItems: {
+      today: {
+        title: 'ಇಂದಿನ ಬಾಹ್ಯಾಕಾಶ ಹವಾಮಾನ',
+        shortDesc: 'ಇಂದು ಬಾಹ್ಯಾಕಾಶ ಶಾಂತವಾಗಿದೆಯೇ ಅಥವಾ ಬಿರುಗಾಳಿ ಇದೆಯೇ ತಿಳಿಯಿರಿ.',
+      },
+      sun: {
+        title: 'ಸೂರ್ಯನ ಸ್ಥಿತಿ',
+        shortDesc: 'ಸೂರ್ಯನ ಹೊಳಪು ಮತ್ತು ಗಾಳಿಯ ವೇಗವನ್ನು ಸರಳವಾಗಿ ತಿಳಿಯಿರಿ.',
+      },
+      earth: {
+        title: 'ಭೂಮಿಯ ಮೇಲಿನ ಪರಿಣಾಮಗಳು',
+        shortDesc: 'ಮೊಬೈಲ್, ಮ್ಯಾಪ್ಸ್, ರೇಡಿಯೋ ಮತ್ತು ವಿದ್ಯುತ್ ಸುರಕ್ಷಿತವೇ ತಿಳಿಯಿರಿ.',
+      },
+      warnings: {
+        title: 'ಅಪಾಯದ ಎಚ್ಚರಿಕೆ',
+        shortDesc: 'ಅಧಿಕೃತ ಬಿರುಗಾಳಿ ಎಚ್ಚರಿಕೆಗಳಿವೆಯೇ ಎಂದು ಪರಿಶೀಲಿಸಿ.',
+      },
+      'all-voice': {
+        title: 'ಎಲ್ಲಾ ಮಾಹಿತಿಯನ್ನು ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಿ',
+        shortDesc: 'ಇಂದಿನ ಪೂರ್ಣ ವರದಿಯನ್ನು ಸರಳವಾಗಿ ಕೇಳಿ.',
+      },
+      ai: {
+        title: 'AIಗೆ ಪ್ರಶ್ನೆ ಕೇಳಿ',
+        shortDesc: 'ಟೈಪ್ ಮಾಡದೆ ಬಟನ್ ಒತ್ತಿ ಅಥವಾ ಮಾತನಾಡಿ ಕೇಳಿ.',
+      },
+    },
+    easyAiHeading: 'ಸರಳ ಪ್ರಶ್ನೆ ಕೇಳಿ',
+    easyAiSubheading: 'ಕೆಳಗಿನ ಪ್ರಶ್ನೆಯನ್ನು ಒತ್ತಿ ಅಥವಾ ಮೈಕ್ ಒತ್ತಿ ಮಾತನಾಡಿ.',
+    easyAiQuickPrompts: [
+      'ಇಂದು ಮೊಬೈಲ್ ಮ್ಯಾಪ್ಸ್ ಮತ್ತು ಸಿಗ್ನಲ್‌ಗಳು ಸುರಕ್ಷಿತವಾಗಿವೆಯೇ?',
+      'ಈಗ ಸೂರ್ಯನ ಮೇಲೆ ಯಾವುದೇ ಬಿರುಗಾಳಿ ಇದೆಯೇ?',
+      'ನಾಳೆ ಏನಾದರೂ ಅಪಾಯವಿದೆಯೇ?',
+    ],
+    easyAiVoiceAskBtn: 'ಒತ್ತಿ ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಮಾತನಾಡಿ',
+    easyAllVoiceTitle: 'ಇಂದಿನ ಪೂರ್ಣ ಸರಳ ಸಾರಾಂಶ',
+    easyAllVoiceSub: 'ಕೇಳಲು ಕೆಳಗಿನ "ಕೇಳಿ" ಬಟನ್ ಒತ್ತಿ.',
+    easyNoWarningsTitle: 'ಯಾವುದೇ ಅಪಾಯದ ಎಚ್ಚರಿಕೆ ಇಲ್ಲ',
+    easyNoWarningsBody: 'ಈಗ ಪರಿಸ್ಥಿತಿ ಸಾಮಾನ್ಯವಾಗಿದೆ. ಯಾವುದೇ ಅಧಿಕೃತ ಎಚ್ಚರಿಕೆ ಇಲ್ಲ.',
+    easyWarningsCountBody: (count) => `ಈಗ ${count} ಅಧಿಕೃತ ಪ್ರಕಟಣೆಗಳು ಕೆಳಗೆ ಸರಳವಾಗಿವೆ.`,
+    easyEarthCalmDetails: [
+      'ಮೊಬೈಲ್ ಫೋನ್, ಇಂಟರ್ನೆಟ್ ಮತ್ತು ಮ್ಯಾಪ್ಸ್ ಸಾಮಾನ್ಯವಾಗಿ ಕೆಲಸ ಮಾಡುತ್ತವೆ.',
+      'ವಿಮಾನಗಳು ಮತ್ತು ವಿದ್ಯುತ್ ಮಾರ್ಗಗಳಿಗೆ ಇಂದು ಯಾವುದೇ ತೊಂದರೆಯಿಲ್ಲ.',
+    ],
+    easyEarthMinorDetails: [
+      'ದೈನಂದಿನ ಫೋನ್‌ಗಳು ಮತ್ತು ಮ್ಯಾಪ್ಸ್ ಚೆನ್ನಾಗಿ ಕೆಲಸ ಮಾಡುತ್ತವೆ.',
+      'ಸಣ್ಣ ಅಲೆಗಳು ಉತ್ತರ ಧ್ರುವದ ಆಕಾಶದಲ್ಲಿ ಮಾತ್ರ ಕಾಣಿಸುತ್ತವೆ.',
+    ],
+    easyEarthStrongDetails: [
+      'ದೂರದ ರೇಡಿಯೋ ಮತ್ತು ಧ್ರುವೀಯ ವಿಮಾನಗಳಲ್ಲಿ ಸ್ವಲ್ಪ ತೊಂದರೆಯಾಗಬಹುದು.',
+      'ಭೂಮಿಯ ಮೇಲಿನ ಸಾಮಾನ್ಯ ಫೋನ್‌ಗಳು ಸುರಕ್ಷಿತ; ಅಧಿಕೃತ ಸೂಚನೆ ಗಮನಿಸಿ.',
+    ],
+    easySunFlareLabel: 'ಸೂರ್ಯನ ಹೊಳಪಿನ ಮಟ್ಟ',
+    easySunWindLabel: 'ಸೂರ್ಯನ ಗಾಳಿಯ ವೇಗ',
+    easyTodayKpLabel: 'ಬಿರುಗಾಳಿ ಸಂಖ್ಯೆ (೦ ರಿಂದ ೯)',
+    easyForecastTomorrowPrefix: 'ನಾಳೆಯ ಮುನ್ಸೂಚನೆ',
   },
 };

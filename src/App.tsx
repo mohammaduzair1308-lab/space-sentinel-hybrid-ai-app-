@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
+  BarChart3,
   Bell,
+  HandHelping,
   Home,
   LogIn,
   MessageSquare,
@@ -13,6 +15,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { AlertsView } from './components/AlertsView';
+import { EasyUseView } from './components/EasyUseView';
 import { HomeDashboardView } from './components/HomeDashboardView';
 import { SentinelLogo } from './components/SentinelLogo';
 import { SettingsView } from './components/SettingsView';
@@ -102,7 +105,9 @@ export default function App() {
     'offline' | 'no-voice' | 'playback-failed' | null
   >(null);
   const [isVoiceLoading, setIsVoiceLoading] = useState<boolean>(false);
-  const [speakingKind, setSpeakingKind] = useState<'none' | 'intro' | 'alert' | 'reply'>('none');
+  const [speakingKind, setSpeakingKind] = useState<'none' | 'intro' | 'alert' | 'reply' | 'easy'>(
+    'none'
+  );
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [isHelperThinking, setIsHelperThinking] = useState<boolean>(false);
 
@@ -375,7 +380,7 @@ export default function App() {
     async (
       text: string,
       targetLang: LanguageCode,
-      kind: 'intro' | 'alert' | 'reply',
+      kind: 'intro' | 'alert' | 'reply' | 'easy',
       options?: { msgId?: string; withChime?: boolean; isCritical?: boolean }
     ) => {
       setVoiceUnavailableReason(null);
@@ -775,6 +780,7 @@ export default function App() {
   };
 
   const navigateTo = (target: PageRoute) => {
+    handleStopAllVoice();
     setVoiceUnavailableReason(null);
     setRoute(target);
   };
@@ -796,13 +802,142 @@ export default function App() {
         voiceUnavailableMessage={voiceUnavailableMessage}
         onSelectLanguage={handleSelectLanguage}
         onListenIntro={handleListenIntro}
-        onEnterCenter={() => navigateTo('home')}
+        onChooseEasyMode={() => navigateTo('easy')}
+        onChooseFullMode={() => navigateTo('home')}
       />
     );
   }
 
+  if (route === 'easy') {
+    return (
+      <div className="min-h-screen bg-slate-100 dark:bg-[#060913] text-slate-900 dark:text-slate-100 flex flex-col">
+        {/* Clean Uncluttered Easy Mode Header */}
+        <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0B1120]/95 backdrop-blur-md">
+          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:px-6">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => navigateTo('welcome')}
+                title={t.backToChoiceBtn}
+                className="flex items-center gap-2 text-start cursor-pointer shrink-0"
+              >
+                <SentinelLogo size="sm" />
+                <span
+                  className="hidden sm:inline text-sm font-bold tracking-tight text-slate-900 dark:text-white truncate"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {t.brandName}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigateTo('home')}
+                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-teal-500/45 bg-teal-500/10 px-2.5 py-1.5 text-xs font-bold text-teal-800 dark:text-teal-200 hover:bg-teal-500/20 whitespace-nowrap cursor-pointer"
+              >
+                <BarChart3 className="h-3.5 w-3.5 shrink-0" />
+                <span>{t.switchToFullBtn}</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Desktop 5-Button Language Switcher */}
+              <div
+                className="hidden md:flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 p-0.5"
+                role="group"
+                aria-label={t.headerLanguageLabel}
+              >
+                {LANGUAGE_LIST.map((lang) => (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => handleSelectLanguage(lang.code)}
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                      lang.code === language
+                        ? 'bg-cyan-500 text-slate-950'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {lang.nativeName}
+                  </button>
+                ))}
+              </div>
+
+              {/* Mobile Compact Language Dropdown */}
+              <select
+                value={language}
+                onChange={(e) => handleSelectLanguage(e.target.value as LanguageCode)}
+                aria-label={t.headerLanguageLabel}
+                className="md:hidden min-h-[38px] rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2 py-1 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-cyan-500 focus:outline-none cursor-pointer"
+              >
+                {LANGUAGE_LIST.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.nativeName}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!voiceMuted) handleStopAllVoice();
+                  setVoiceMuted((m) => !m);
+                }}
+                aria-label={voiceMuted ? t.headerVoiceMuted : t.headerVoiceOn}
+                className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 px-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-500 cursor-pointer"
+              >
+                {voiceMuted ? (
+                  <VolumeX className="h-4 w-4" />
+                ) : (
+                  <Volume2 className="h-4 w-4 text-cyan-500" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+                aria-label={theme === 'dark' ? t.headerThemeLight : t.headerThemeDark}
+                className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70 px-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-500 cursor-pointer"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="h-4 w-4 text-amber-400" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-12 sm:px-6">
+          <EasyUseView
+            t={t}
+            language={language}
+            solar={solar}
+            isFetching={isFetchingSolar}
+            offlineMode={offlineMode}
+            fetchError={fetchError}
+            speakingKind={speakingKind}
+            speakingMsgId={speakingMsgId}
+            isVoiceLoading={isVoiceLoading}
+            voiceUnavailableMessage={voiceUnavailableMessage}
+            activeMessages={activeMessages}
+            isHelperThinking={isHelperThinking}
+            onRefreshLive={handleRefreshLive}
+            onSpeakText={(txt, opts) =>
+              void speakWithSettings(txt, language, opts?.kind ?? 'easy', { msgId: opts?.msgId })
+            }
+            onStopVoice={handleStopAllVoice}
+            onSendMessage={handleSendHelperMessage}
+            onRetryMessage={handleRetryHelperMessage}
+          />
+        </main>
+      </div>
+    );
+  }
+
   const navItems: Array<{
-    id: Exclude<PageRoute, 'welcome'>;
+    id: Exclude<PageRoute, 'welcome' | 'easy'>;
     label: string;
     Icon: typeof Home;
     badge?: string;
@@ -886,6 +1021,18 @@ export default function App() {
               );
             })}
           </nav>
+
+          {/* One-Tap Return to Easy Use Mode */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => navigateTo('easy')}
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-cyan-500/45 bg-cyan-500/10 px-3 py-2 text-xs font-bold text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/20 cursor-pointer"
+            >
+              <HandHelping className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t.switchToEasyBtn}</span>
+            </button>
+          </div>
         </div>
 
         {/* Bottom Account Summary */}
@@ -917,16 +1064,26 @@ export default function App() {
         {/* Compact Top Header */}
         <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0B1120]/95 backdrop-blur-md">
           <div className="mx-auto flex h-13 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => navigateTo('welcome')}
+                title={t.backToChoiceBtn}
                 className="flex items-center gap-2 lg:hidden cursor-pointer shrink-0"
               >
                 <SentinelLogo size="sm" />
-                <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                <span className="hidden sm:inline text-sm font-bold text-slate-900 dark:text-white truncate">
                   {t.brandName}
                 </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigateTo('easy')}
+                className="inline-flex lg:hidden min-h-[38px] items-center gap-1.5 rounded-lg border border-cyan-500/45 bg-cyan-500/10 px-2.5 py-1.5 text-xs font-bold text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/20 whitespace-nowrap cursor-pointer"
+              >
+                <HandHelping className="h-3.5 w-3.5 shrink-0" />
+                <span>{t.switchToEasyBtn}</span>
               </button>
 
               <span className="hidden lg:block text-sm font-bold text-slate-900 dark:text-slate-100 truncate">

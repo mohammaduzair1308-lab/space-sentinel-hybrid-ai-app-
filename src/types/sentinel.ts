@@ -2,7 +2,9 @@ export type LanguageCode = 'en' | 'ur' | 'hi' | 'te' | 'kn';
 
 export type SeverityLevel = 'nominal' | 'minor' | 'strong' | 'extreme';
 
-export type PageRoute = 'welcome' | 'home' | 'weather' | 'helper' | 'alerts' | 'settings';
+export type PageRoute = 'welcome' | 'easy' | 'home' | 'weather' | 'helper' | 'alerts' | 'settings';
+
+export type EasyMenuSection = 'today' | 'sun' | 'earth' | 'warnings' | 'all-voice' | 'ai';
 
 export type SpaceWeatherTopic = 'flares' | 'storms' | 'kp' | 'wind' | 'gps';
 
