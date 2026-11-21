@@ -259,7 +259,7 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
         return {
           heading: t.easyAllVoiceTitle,
           paragraphs: combined,
-          speech: combined.join(' ').slice(0, 720),
+          speech: combined.join(' '),
         };
       }
     }
@@ -476,8 +476,7 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
                     onSpeakText(t.easyGuideVoiceScript, { kind: 'easy', msgId: 'easy-guide' });
                   }
                 }}
-                disabled={isVoiceLoading && speakingKind === 'easy'}
-                className={`inline-flex min-h-[48px] items-center gap-2.5 rounded-xl border px-4 py-2.5 text-sm font-bold transition-colors cursor-pointer disabled:opacity-75 ${
+                className={`inline-flex min-h-[48px] items-center gap-2.5 rounded-xl border px-4 py-2.5 text-sm font-bold transition-colors cursor-pointer ${
                   isPlayingEasy && speakingMsgId === 'easy-guide'
                     ? 'border-rose-500 bg-rose-600 text-white'
                     : 'border-cyan-500/45 bg-cyan-50 dark:bg-cyan-500/15 text-cyan-900 dark:text-cyan-200 hover:bg-cyan-100 dark:hover:bg-cyan-500/25'
@@ -590,14 +589,13 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (isPlayingEasy) {
+                  if (isPlayingEasy || isVoiceLoading) {
                     onStopVoice();
                   } else {
                     onSpeakText(content.speech, { kind: 'easy', msgId: `easy-${selectedSection}` });
                   }
                 }}
-                disabled={isVoiceLoading}
-                className={`inline-flex min-h-[48px] items-center gap-2.5 rounded-xl px-6 py-2.5 text-base font-extrabold transition-colors cursor-pointer disabled:opacity-75 ${
+                className={`inline-flex min-h-[48px] items-center gap-2.5 rounded-xl px-6 py-2.5 text-base font-extrabold transition-colors cursor-pointer ${
                   isPlayingEasy
                     ? 'bg-rose-600 text-white hover:bg-rose-500'
                     : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400'
@@ -621,8 +619,20 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
             </div>
 
             {voiceUnavailableMessage && (
-              <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
-                {voiceUnavailableMessage}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+                <span>{voiceUnavailableMessage}</span>
+                {!offlineMode && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onSpeakText(content.speech, { kind: 'easy', msgId: `easy-${selectedSection}` })
+                    }
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-amber-500/50 bg-white/80 dark:bg-slate-900/75 px-3 py-1.5 text-xs font-bold text-amber-950 dark:text-amber-100 cursor-pointer"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>{t.retryBtn}</span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -900,28 +910,27 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
                           </button>
                         )}
 
-                        {isSpeakingThis ? (
+                        {isSpeakingThis || isLoadingThis ? (
                           <button
                             type="button"
                             onClick={onStopVoice}
                             className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white cursor-pointer"
                           >
-                            <VolumeX className="h-4 w-4" />
-                            <span>{t.easyStopBtn}</span>
+                            {isLoadingThis ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <VolumeX className="h-4 w-4" />
+                            )}
+                            <span>{isLoadingThis ? t.voiceLoadingBtn : t.easyStopBtn}</span>
                           </button>
                         ) : (
                           <button
                             type="button"
-                            disabled={isLoadingThis}
                             onClick={() => onSpeakText(msg.text, { kind: 'reply', msgId: msg.id })}
-                            className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-70 cursor-pointer"
+                            className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-cyan-400 cursor-pointer"
                           >
-                            {isLoadingThis ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Volume2 className="h-4 w-4" />
-                            )}
-                            <span>{isLoadingThis ? t.voiceLoadingBtn : t.easyListenBtn}</span>
+                            <Volume2 className="h-4 w-4" />
+                            <span>{t.easyListenBtn}</span>
                           </button>
                         )}
                       </div>

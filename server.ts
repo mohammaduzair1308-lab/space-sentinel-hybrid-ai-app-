@@ -23,8 +23,118 @@ const TTS_STYLE_BY_LANG: Record<string, string> = {
   kn: 'Warm, clear, natural everyday Kannada speaker at a calm, easy pace.',
 };
 
-// Small in-memory cache for repeated UI prompts (Welcome intro / Alert scripts)
-const ttsCache = new Map<string, { audioBase64: string; mimeType: string }>();
+// Small in-memory cache for repeated UI prompts & Easy Use sections
+const ttsCache = new Map<string, { audioBase64: string; mimeType: string; ttsProvider: string }>();
+const geminiTtsCooldownUntil = new Map<string, number>();
+
+const FALLBACK_TTS_LANG_MAP: Record<string, string> = {
+  ur: 'ur',
+  en: 'en',
+  hi: 'hi',
+  te: 'te',
+  kn: 'kn',
+};
+
+function trimTextAtBoundary(raw: string, maxLen = 920): string {
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= maxLen) return cleaned;
+  const slice = cleaned.slice(0, maxLen);
+  const lastStop = Math.max(
+    slice.lastIndexOf('۔'),
+    slice.lastIndexOf('.'),
+    slice.lastIndexOf('!'),
+    slice.lastIndexOf('?'),
+    slice.lastIndexOf(' '),
+  );
+  return lastStop > maxLen * 0.6 ? slice.slice(0, lastStop + 1).trim() : slice.trim();
+}
+
+function splitTextForFallbackTts(text: string, maxLen = 180): string[] {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return [];
+  if (cleaned.length <= maxLen) return [cleaned];
+
+  const segments = cleaned.split(/(?<=[۔.!?،,;:\n])\s+/);
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const seg of segments) {
+    const candidate = current ? `${current} ${seg}` : seg;
+    if (candidate.length <= maxLen) {
+      current = candidate;
+      continue;
+    }
+    if (current) {
+      chunks.push(current);
+      current = '';
+    }
+    if (seg.length <= maxLen) {
+      current = seg;
+    } else {
+      const words = seg.split(' ');
+      for (const w of words) {
+        const nextWord = current ? `${current} ${w}` : w;
+        if (nextWord.length <= maxLen) {
+          current = nextWord;
+        } else {
+          if (current) chunks.push(current);
+          current = w.slice(0, maxLen);
+        }
+      }
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function fetchFallbackTtsChunk(url: string, timeoutMs = 9000): Promise<Buffer | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/124.0 Mobile Safari/537.36',
+          Accept: 'audio/mpeg, audio/*;q=0.9, */*;q=0.8',
+        },
+      });
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > 256) return buf;
+      }
+    } catch {
+      // Retry once on transient error
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return null;
+}
+
+async function generateFallbackTtsAudio(
+  text: string,
+  language: string
+): Promise<{ audioBase64: string; mimeType: string } | null> {
+  const tl = FALLBACK_TTS_LANG_MAP[language] ?? 'en';
+  const chunks = splitTextForFallbackTts(text, 180);
+  if (chunks.length === 0) return null;
+
+  const mp3Parts: Buffer[] = [];
+  for (const chunk of chunks) {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(tl)}&q=${encodeURIComponent(chunk)}`;
+    const buf = await fetchFallbackTtsChunk(url, 9000);
+    if (!buf) return null;
+    mp3Parts.push(buf);
+  }
+
+  const combined = Buffer.concat(mp3Parts);
+  if (combined.length < 256) return null;
+  return {
+    audioBase64: combined.toString('base64'),
+    mimeType: 'audio/mpeg',
+  };
+}
 
 function getSharedAiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({
@@ -462,19 +572,10 @@ async function startServer() {
 
   app.post('/api/tts', async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      res.status(503).json({
-        ok: false,
-        errorCode: 'config',
-        error: 'GEMINI_API_KEY is not configured on the server',
-      });
-      return;
-    }
-
     const body = req.body ?? {};
     const rawText = typeof body.text === 'string' ? body.text.trim() : '';
     const language = typeof body.language === 'string' ? body.language : 'en';
-    const text = rawText.slice(0, 750);
+    const text = trimTextAtBoundary(rawText, 920);
 
     if (!text) {
       res.status(400).json({ ok: false, errorCode: 'bad_request', error: 'Text is required' });
@@ -488,73 +589,113 @@ async function startServer() {
       return;
     }
 
-    try {
+    let base64Audio: string | undefined;
+    let mimeType = 'audio/wav';
+    let ttsProvider = 'gemini-tts';
+    let lastGeminiErr: unknown = null;
+
+    // 1. Try Gemini TTS models (skipping models currently in 429 quota cooldown)
+    if (apiKey) {
       const ai = getSharedAiClient(apiKey);
       const style = TTS_STYLE_BY_LANG[language] ?? TTS_STYLE_BY_LANG.en;
+      const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'];
 
-      const response = await Promise.race([
-        ai.models.generateContent({
-          model: 'gemini-3.8-flash-lite-tts',
-          contents: [
-            {
-              role: 'user',
-              parts: [
+      for (const modelName of ttsModels) {
+        const cooldownUntil = geminiTtsCooldownUntil.get(modelName) ?? 0;
+        if (Date.now() < cooldownUntil) continue;
+
+        try {
+          const response = await Promise.race([
+            ai.models.generateContent({
+              model: modelName,
+              contents: [
                 {
-                  text,
-                  speechMetadata: {
-                    style,
-                  },
+                  role: 'user',
+                  parts: [
+                    {
+                      text,
+                      speechMetadata: {
+                        style,
+                      },
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-          config: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: 'Kore' },
+              config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {
+                  voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: 'Kore' },
+                  },
+                },
               },
-            },
-          },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('TTS generation timeout')), 14000)
-        ),
-      ]);
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`${modelName} TTS generation timeout`)), 20000)
+            ),
+          ]);
 
-      const parts = response.candidates?.[0]?.content?.parts ?? [];
-      const audioPart = parts.find((p) => p.inlineData?.data);
-      const base64Audio = audioPart?.inlineData?.data;
-      const mimeType = audioPart?.inlineData?.mimeType || 'audio/wav';
-
-      if (!base64Audio) {
-        res.status(502).json({
-          ok: false,
-          errorCode: 'empty_audio',
-          error: 'No audio bytes returned by TTS model',
-        });
-        return;
+          const parts = response.candidates?.[0]?.content?.parts ?? [];
+          const audioPart = parts.find((p) => p.inlineData?.data);
+          const candidateAudio = audioPart?.inlineData?.data;
+          if (candidateAudio) {
+            base64Audio = candidateAudio;
+            mimeType = audioPart?.inlineData?.mimeType || 'audio/wav';
+            ttsProvider = modelName;
+            break;
+          }
+        } catch (err) {
+          lastGeminiErr = err;
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (/429|RESOURCE_EXHAUSTED|quota|rate/i.test(errMsg)) {
+            // Avoid hitting exhausted Free Tier TTS quota on every subsequent tap
+            geminiTtsCooldownUntil.set(modelName, Date.now() + 10 * 60 * 1000);
+          }
+          console.warn(`[TTS] ${modelName} failed, falling back:`, errMsg.slice(0, 180));
+        }
       }
+    }
 
-      if (ttsCache.size >= 24) {
-        const firstKey = ttsCache.keys().next().value;
-        if (firstKey) ttsCache.delete(firstKey);
+    // 2. Fallback to reliable server-side multilingual TTS when Gemini TTS quota is exhausted or unavailable
+    if (!base64Audio) {
+      const fallbackResult = await generateFallbackTtsAudio(text, language);
+      if (fallbackResult) {
+        base64Audio = fallbackResult.audioBase64;
+        mimeType = fallbackResult.mimeType;
+        ttsProvider = 'server-fallback-tts';
       }
-      ttsCache.set(cacheKey, { audioBase64: base64Audio, mimeType });
+    }
 
-      res.json({
-        ok: true,
-        audioBase64: base64Audio,
-        mimeType,
-      });
-    } catch (err) {
-      const classified = classifyGeminiError(err);
+    if (!base64Audio) {
+      const classified = lastGeminiErr
+        ? classifyGeminiError(lastGeminiErr)
+        : {
+            status: apiKey ? 502 : 503,
+            errorCode: apiKey ? 'tts_unavailable' : 'config',
+            message: apiKey
+              ? 'Unable to synthesize speech audio right now'
+              : 'TTS service is unavailable',
+          };
       res.status(classified.status).json({
         ok: false,
         errorCode: classified.errorCode,
         error: classified.message,
       });
+      return;
     }
+
+    if (ttsCache.size >= 40) {
+      const firstKey = ttsCache.keys().next().value;
+      if (firstKey) ttsCache.delete(firstKey);
+    }
+    ttsCache.set(cacheKey, { audioBase64: base64Audio, mimeType, ttsProvider });
+
+    res.json({
+      ok: true,
+      audioBase64: base64Audio,
+      mimeType,
+      ttsProvider,
+    });
   });
 
   if (process.env.NODE_ENV !== 'production') {
