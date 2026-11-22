@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Compass,
+  Cpu,
   Loader2,
   MessageSquare,
   Mic,
@@ -22,6 +23,7 @@ import {
   EasyMenuSection,
   HelperMessage,
   LanguageCode,
+  LocalModelSupport,
   SolarWeatherState,
 } from '../types/sentinel';
 import {
@@ -43,6 +45,14 @@ interface EasyUseViewProps {
   voiceUnavailableMessage: string | null;
   activeMessages: HelperMessage[];
   isHelperThinking: boolean;
+  localModelSupport?: LocalModelSupport;
+  isPreparingDeviceModel?: boolean;
+  deviceModelProgress?: number | null;
+  deviceModelStatus?: {
+    code: 'ready' | 'unsupported' | 'incomplete' | 'error';
+    detail?: string;
+  } | null;
+  onPrepareDeviceModel?: () => void;
   onRefreshLive: () => void;
   onSpeakText: (text: string, options?: { kind?: 'easy' | 'reply'; msgId?: string }) => void;
   onStopVoice: () => void;
@@ -111,6 +121,11 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
   voiceUnavailableMessage,
   activeMessages,
   isHelperThinking,
+  localModelSupport = 'unsupported',
+  isPreparingDeviceModel = false,
+  deviceModelProgress = null,
+  deviceModelStatus = null,
+  onPrepareDeviceModel,
   onRefreshLive,
   onSpeakText,
   onStopVoice,
@@ -788,9 +803,60 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
 
           {offlineMode && (
             <div className="rounded-xl border border-cyan-500/35 bg-cyan-50/70 dark:bg-cyan-500/10 px-4 py-2.5 text-sm font-medium text-cyan-900 dark:text-cyan-200">
-              {t.offlineGuideActiveNote}
+              {localModelSupport === 'available' && language === 'en'
+                ? t.offlineNanoAndGuideNote
+                : t.offlineGuideActiveNote}
             </div>
           )}
+
+          {language === 'en' &&
+            (localModelSupport === 'downloadable' ||
+              isPreparingDeviceModel ||
+              (deviceModelStatus !== null && deviceModelStatus.code !== 'unsupported')) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/35 bg-emerald-50/70 dark:bg-emerald-500/10 px-4 py-3 text-xs sm:text-sm">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="font-semibold text-emerald-950 dark:text-emerald-100">
+                    {deviceModelStatus?.code === 'ready'
+                      ? t.deviceModelReadyNotice
+                      : deviceModelStatus?.code === 'incomplete'
+                        ? t.deviceModelIncompleteNotice
+                        : deviceModelStatus?.code === 'error'
+                          ? t.deviceModelErrorNotice(deviceModelStatus.detail)
+                          : t.askAiNanoPromptNote}
+                  </p>
+                  {isPreparingDeviceModel && deviceModelProgress !== null && (
+                    <div className="space-y-1 pt-0.5">
+                      <span className="text-xs font-semibold text-cyan-800 dark:text-cyan-200">
+                        {t.deviceModelProgressLabel(deviceModelProgress)}
+                      </span>
+                      <progress
+                        value={deviceModelProgress}
+                        max={100}
+                        className="block h-2 w-full overflow-hidden rounded-full accent-cyan-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {onPrepareDeviceModel && localModelSupport !== 'available' && (
+                  <button
+                    type="button"
+                    disabled={isPreparingDeviceModel}
+                    onClick={onPrepareDeviceModel}
+                    className="inline-flex min-h-[42px] shrink-0 items-center gap-2 rounded-xl border border-cyan-500/60 bg-cyan-500/20 px-4 py-2 text-xs font-bold text-cyan-950 dark:text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-60 cursor-pointer"
+                  >
+                    {isPreparingDeviceModel ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Cpu className="h-4 w-4" />
+                    )}
+                    <span>
+                      {isPreparingDeviceModel ? t.preparingDeviceModelBtn : t.prepareDeviceModelBtn}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
 
           {/* Large Voice Ask Mic Button (No Typing Required) */}
           <button
@@ -903,8 +969,7 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
                           <span
                             dir="ltr"
                             className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
-                              msg.provider === 'firebase-ai-on-device' ||
-                              msg.provider === 'on-device-browser'
+                              msg.provider === 'firebase-ai-on-device'
                                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
                                 : msg.provider === 'firebase-ai-cloud'
                                   ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-800 dark:text-cyan-200'

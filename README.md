@@ -27,9 +27,13 @@ Space Sentinel Hybrid AI solves this by:
   - Fetches live JSON feeds from `services.swpc.noaa.gov` (`planetary_k_index_1m.json` with `noaa-planetary-k-index.json` fallback, `xrays-6-hour.json`, `rtsw_wind_1m.json` with `solar-wind-speed.json` fallback, `alerts.json`, and `noaa-scales.json`).
   - Tracks true measurement timestamps (`kpObservedAtIso`, `xrayObservedAtIso`, `windObservedAtIso`) and falls back transparently to `localStorage` cached snapshots with visible age labels when offline.
 - **Hybrid AI Architecture (`src/utils/hybridAi.ts`):**
-  - **Firebase AI Logic (`firebase/ai`):** Uses `GoogleAIBackend` (`gemini-2.5-flash`) with hybrid modes (`PREFER_IN_CLOUD` / `PREFER_ON_DEVICE`) and `ONLY_ON_DEVICE` when supported by the browser.
-  - **Server-Side Gemini Backup (`/api/gemini/chat`):** Uses `@google/genai` on Express (`gemini-3.1-flash-lite` with `gemini-4-hydrogen` fallback) grounded in live/cached telemetry.
-  - **Offline Local Guide (`src/utils/offlineAiEngine.ts`):** Runs 100% locally with zero network calls when internet is unavailable and the browser lacks built-in on-device AI.
+  - **Firebase AI Logic (`firebase/ai`):** Uses `GoogleAIBackend` (`gemini-2.5-flash`) with real hybrid routing:
+    - `InferenceMode.PREFER_ON_DEVICE`: Used for short, single-turn English prompts when on-device preference is enabled—runs **Gemini Nano** on supported Desktop Chrome (`window.LanguageModel`) if ready, otherwise seamlessly runs `gemini-2.5-flash` in Firebase Cloud.
+    - `InferenceMode.ONLY_IN_CLOUD`: Used for Urdu, Hindi, Telugu, Kannada, longer English prompts, and multi-turn chat conversations.
+    - `InferenceMode.ONLY_ON_DEVICE`: Used when offline (or when Cloud is temporarily unavailable) on Desktop Chrome if Gemini Nano is initialized for short, single-turn English questions.
+  - **Explicit Model Initialization & Runtime Proof:** Users can click **Initialize / Download Gemini Nano** (in **Settings** or inline in **Ask AI** when supported) to invoke `GenerativeModel.initializeDeviceModel(onDownloadProgress)` with real download progress percentage. Every reply checks `result.response.inferenceSource` (`InferenceSource.ON_DEVICE` vs `InferenceSource.IN_CLOUD`) to display its true source badge.
+  - **Server-Side Gemini Backup (`/api/gemini/chat`):** Uses `@google/genai` on Express (`gemini-3.1-flash-lite` with `gemini-4-hydrogen` fallback) grounded in live/cached telemetry if client-side Firebase AI Logic cannot complete.
+  - **Offline Local Guide (`src/utils/offlineAiEngine.ts`):** Runs 100% locally with zero network calls when internet is unavailable and on-device Gemini Nano cannot handle the request (such as on mobile Chrome or for Urdu/non-English/multi-turn chats).
 - **Firebase App Check (`src/firebase.ts`):**
   - Integrates `ReCaptchaEnterpriseProvider` with auto token refresh for Firebase AI Logic and Firebase requests.
 - **5 Languages (`src/data/localization.ts`):**
@@ -45,18 +49,19 @@ Space Sentinel Hybrid AI solves this by:
 
 ## Online AI vs. Offline Local Guide (Honest Capabilities)
 
-Space Sentinel clearly distinguishes between three AI execution paths and never mislabels offline behavior:
+Space Sentinel clearly distinguishes between four AI execution paths using real runtime `inferenceSource` checks and never mislabels offline behavior:
 
-1. **Online Generative AI (`firebase-ai-cloud` / `server-gemini`):**
-   - Requires an active internet connection.
-   - Uses Gemini models via Firebase AI Logic or `/api/gemini/chat` for open-ended multilingual conversation grounded in real NOAA telemetry.
-2. **True On-Device Browser AI (`firebase-ai-on-device`):**
-   - Used **only** if the user’s browser genuinely exposes the Built-in AI `LanguageModel` API (Chrome Gemini Nano).
-   - **Important limitation:** Production **Android mobile Chrome** does not currently expose Gemini Nano (`window.LanguageModel`) or full client-side generative LLMs to standard web apps, and downloading large WebGPU models (400 MB–1.5 GB) is impractical on typical mobile devices. The app probes honestly and reports `"unsupported"` when absent—it never falsely claims Gemini Nano is running on Android Chrome.
-3. **Offline Local Guide (`offline-local-guide`):**
-   - A fast, deterministic, zero-download local Q&A engine (`src/utils/offlineAiEngine.ts`) built for real mobile offline reliability.
-   - When internet is disconnected on Android Chrome or desktop, it answers core questions (current solar storm state, phone GPS/maps impact, `Kp` number meaning, solar flares, solar wind, tomorrow’s outlook/warnings, human/grid safety, and offline behavior) in Urdu (plus Roman Urdu understanding) and the other four supported languages using the device’s cached NOAA telemetry.
-   - Replies are transparently labeled **Offline Local Guide (Saved Data)** / **آف لائن مقامی رہنما (محفوظ معلومات)**.
+1. **On-Device Gemini Nano (`ON_DEVICE — Gemini Nano` / `firebase-ai-on-device`):**
+   - Runs **only** on supported Desktop Chrome exposing `window.LanguageModel` after explicit `initializeDeviceModel()` readiness, for short single-turn English prompts (both online via `InferenceMode.PREFER_ON_DEVICE` and offline via `InferenceMode.ONLY_ON_DEVICE`), verified directly via `result.response.inferenceSource === InferenceSource.ON_DEVICE`.
+   - **Important limitation:** Production **Android mobile Chrome** does not currently expose Gemini Nano (`window.LanguageModel`) to standard web apps, and downloading large WebGPU models (400 MB–1.5 GB) is impractical on typical mobile devices. The app probes `window.LanguageModel` honestly and reports `"unsupported"` when absent—it never falsely claims Gemini Nano is running on Android Chrome.
+2. **Firebase AI Logic Cloud (`IN_CLOUD — Firebase AI Logic` / `firebase-ai-cloud`):**
+   - Primary online cloud path (`gemini-2.5-flash` via `GoogleAIBackend`) for Urdu, Hindi, Telugu, Kannada, multi-turn chats (`ONLY_IN_CLOUD`), and English fallback when Gemini Nano is not yet downloaded (`PREFER_ON_DEVICE` verified via `InferenceSource.IN_CLOUD`).
+3. **Server Gemini Backup (`SERVER BACKUP — /api/gemini/chat` / `server-gemini`):**
+   - Authenticated Express fallback using `@google/genai` grounded in live/cached telemetry whenever client-side Firebase AI Logic encounters network, quota, or App Check interruption.
+4. **Offline Local Guide (`OFFLINE LOCAL GUIDE — Saved Local Data` / `offline-local-guide`):**
+   - A fast, deterministic, zero-download local Q&A engine (`src/utils/offlineAiEngine.ts`) built for real mobile offline reliability and non-English offline support.
+   - When internet is disconnected on Android Chrome—or for Urdu, Hindi, Telugu, Kannada, and multi-turn questions offline—it answers core questions (current solar storm state, phone GPS/maps impact, `Kp` number meaning, solar flares, solar wind, tomorrow’s outlook/warnings, human/grid safety, and offline behavior) using the device’s cached NOAA telemetry.
+   - Replies are transparently labeled **OFFLINE LOCAL GUIDE — Saved Local Data** / **OFFLINE LOCAL GUIDE — محفوظ مقامی معلومات**.
 
 ---
 

@@ -558,28 +558,37 @@ export default function App() {
     historyMsgs: HelperMessage[]
   ) => {
     const targetBundle = LOCALIZATION[targetLang];
-    return await askHybridSentinel({
+    const aiRes = await askHybridSentinel({
       question: questionText,
       language: targetLang,
       solar,
       history: historyMsgs,
       offlineMode,
       preferOnDeviceFirst,
-      localModelSupport,
       offlineUnavailableMsg: targetBundle.offlineAiUnavailableMsg(solar),
       networkUnavailableMsg: targetBundle.networkAiUnavailableMsg,
       timeoutUnavailableMsg: targetBundle.timeoutAiUnavailableMsg,
       rateLimitUnavailableMsg: targetBundle.rateLimitAiUnavailableMsg,
     });
+    setLocalModelSupport(aiRes.detectedLocalSupport);
+    return aiRes;
   };
 
-  const handleSendHelperMessage = async (question: string) => {
+  const handleSendHelperMessage = async (
+    question: string,
+    options?: { standalone?: boolean }
+  ) => {
     const cleaned = question.trim();
     if (!cleaned || isHelperThinking) return;
 
+    const isStandalone = Boolean(options?.standalone);
     const now = new Date();
     const nowIso = now.toISOString();
-    const targetLang = activeConversation ? activeConversation.language : language;
+    const targetLang = isStandalone
+      ? language
+      : activeConversation
+        ? activeConversation.language
+        : language;
     const formattedTime = formatTimeForLanguage(now, targetLang);
 
     const userMsg: HelperMessage = {
@@ -588,6 +597,7 @@ export default function App() {
       text: cleaned,
       timestamp: formattedTime,
       createdAtIso: nowIso,
+      isStandalone,
     };
 
     let convId = activeConversation?.id ?? null;
@@ -639,7 +649,8 @@ export default function App() {
     }
 
     setIsHelperThinking(true);
-    const aiRes = await runAiRequest(cleaned, targetLang, priorHistory);
+    const aiHistory = isStandalone ? [] : priorHistory;
+    const aiRes = await runAiRequest(cleaned, targetLang, aiHistory);
 
     const replyNow = new Date();
     const replyIso = replyNow.toISOString();
@@ -652,6 +663,7 @@ export default function App() {
       createdAtIso: replyIso,
       canRetry: aiRes.canRetry,
       retryQuestion: aiRes.canRetry ? cleaned : undefined,
+      isStandalone,
     };
 
     const finalCount = priorHistory.length + 2;
@@ -683,11 +695,13 @@ export default function App() {
     if (!retryQ) return;
 
     const convId = activeConversation.id;
-    const targetLang = activeConversation.language;
+    const isStandalone = Boolean(failedMsg.isStandalone);
+    const targetLang = isStandalone ? language : activeConversation.language;
     const historyBefore = activeConversation.messages.filter((m) => m.id !== failedMsg.id);
+    const aiHistory = isStandalone ? [] : historyBefore;
 
     setIsHelperThinking(true);
-    const aiRes = await runAiRequest(retryQ, targetLang, historyBefore);
+    const aiRes = await runAiRequest(retryQ, targetLang, aiHistory);
 
     const replyNow = new Date();
     const replyIso = replyNow.toISOString();
@@ -701,6 +715,7 @@ export default function App() {
       createdAtIso: replyIso,
       canRetry: aiRes.canRetry,
       retryQuestion: aiRes.canRetry ? retryQ : undefined,
+      isStandalone,
     };
 
     setConversations((prev) =>
@@ -959,12 +974,17 @@ export default function App() {
             voiceUnavailableMessage={voiceUnavailableMessage}
             activeMessages={activeMessages}
             isHelperThinking={isHelperThinking}
+            localModelSupport={localModelSupport}
+            isPreparingDeviceModel={isPreparingDeviceModel}
+            deviceModelProgress={deviceModelProgress}
+            deviceModelStatus={deviceModelStatus}
+            onPrepareDeviceModel={handlePrepareDeviceModel}
             onRefreshLive={handleRefreshLive}
             onSpeakText={(txt, opts) =>
               void speakWithSettings(txt, language, opts?.kind ?? 'easy', { msgId: opts?.msgId })
             }
             onStopVoice={handleStopAllVoice}
-            onSendMessage={handleSendHelperMessage}
+            onSendMessage={(q) => void handleSendHelperMessage(q, { standalone: true })}
             onRetryMessage={handleRetryHelperMessage}
           />
         </main>
@@ -1245,6 +1265,11 @@ export default function App() {
               speakingMsgId={speakingMsgId}
               isVoiceLoading={isVoiceLoading && speakingKind === 'reply'}
               voiceUnavailableMessage={voiceUnavailableMessage}
+              localModelSupport={localModelSupport}
+              isPreparingDeviceModel={isPreparingDeviceModel}
+              deviceModelProgress={deviceModelProgress}
+              deviceModelStatus={deviceModelStatus}
+              onPrepareDeviceModel={handlePrepareDeviceModel}
               onSelectConversation={(id) => {
                 handleStopAllVoice();
                 setVoiceUnavailableReason(null);
@@ -1253,7 +1278,7 @@ export default function App() {
               onNewChat={handleNewChat}
               onRenameConversation={handleRenameConversation}
               onDeleteConversation={handleDeleteConversation}
-              onSendMessage={handleSendHelperMessage}
+              onSendMessage={(q) => void handleSendHelperMessage(q)}
               onRetryMessage={handleRetryHelperMessage}
               onSpeakReply={(msgId, txt, msgLang) =>
                 void speakWithSettings(txt, msgLang, 'reply', { msgId })

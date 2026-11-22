@@ -136,6 +136,7 @@ export interface HelperMessage {
   createdAtIso: string;
   canRetry?: boolean;
   retryQuestion?: string;
+  isStandalone?: boolean;
 }
 
 export interface ChatConversation {

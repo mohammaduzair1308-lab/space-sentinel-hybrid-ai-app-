@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
+  Cpu,
   Edit2,
   ExternalLink,
   List,
@@ -18,7 +19,12 @@ import {
   X,
 } from 'lucide-react';
 import { LANGUAGE_LIST, LocalizationBundle } from '../data/localization';
-import { ChatConversation, HelperMessage, LanguageCode } from '../types/sentinel';
+import {
+  ChatConversation,
+  HelperMessage,
+  LanguageCode,
+  LocalModelSupport,
+} from '../types/sentinel';
 import {
   formatShortDateForLanguage,
   formatTimeForLanguage,
@@ -36,6 +42,14 @@ interface SpaceHelperViewProps {
   speakingMsgId: string | null;
   isVoiceLoading: boolean;
   voiceUnavailableMessage: string | null;
+  localModelSupport?: LocalModelSupport;
+  isPreparingDeviceModel?: boolean;
+  deviceModelProgress?: number | null;
+  deviceModelStatus?: {
+    code: 'ready' | 'unsupported' | 'incomplete' | 'error';
+    detail?: string;
+  } | null;
+  onPrepareDeviceModel?: () => void;
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
   onRenameConversation: (id: string, title: string) => void;
@@ -69,6 +83,11 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
   speakingMsgId,
   isVoiceLoading,
   voiceUnavailableMessage,
+  localModelSupport = 'unsupported',
+  isPreparingDeviceModel = false,
+  deviceModelProgress = null,
+  deviceModelStatus = null,
+  onPrepareDeviceModel,
   onSelectConversation,
   onNewChat,
   onRenameConversation,
@@ -426,12 +445,65 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
           </div>
         </div>
 
-        {/* Reassuring Offline Local Guide Banner */}
+        {/* Reassuring Offline Notice */}
         {offlineMode && (
           <div className="rounded-xl border border-cyan-500/35 bg-cyan-50/70 dark:bg-cyan-500/10 px-4 py-2.5 text-xs font-medium text-cyan-900 dark:text-cyan-200">
-            {t.offlineGuideActiveNote}
+            {localModelSupport === 'available' &&
+            (activeConversation ? activeConversationLanguage : language) === 'en'
+              ? t.offlineNanoAndGuideNote
+              : t.offlineGuideActiveNote}
           </div>
         )}
+
+        {/* Inline Gemini Nano Initialization Strip (Shown only in English when Desktop Chrome reports downloadable/preparing/status) */}
+        {(activeConversation ? activeConversationLanguage : language) === 'en' &&
+          (localModelSupport === 'downloadable' ||
+            isPreparingDeviceModel ||
+            (deviceModelStatus !== null && deviceModelStatus.code !== 'unsupported')) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/35 bg-emerald-50/70 dark:bg-emerald-500/10 px-4 py-2.5 text-xs">
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-semibold text-emerald-950 dark:text-emerald-100">
+                  {deviceModelStatus?.code === 'ready'
+                    ? t.deviceModelReadyNotice
+                    : deviceModelStatus?.code === 'incomplete'
+                      ? t.deviceModelIncompleteNotice
+                      : deviceModelStatus?.code === 'error'
+                        ? t.deviceModelErrorNotice(deviceModelStatus.detail)
+                        : t.askAiNanoPromptNote}
+                </p>
+                {isPreparingDeviceModel && deviceModelProgress !== null && (
+                  <div className="space-y-1 pt-0.5">
+                    <span className="font-semibold text-cyan-800 dark:text-cyan-200">
+                      {t.deviceModelProgressLabel(deviceModelProgress)}
+                    </span>
+                    <progress
+                      value={deviceModelProgress}
+                      max={100}
+                      className="block h-2 w-full overflow-hidden rounded-full accent-cyan-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {onPrepareDeviceModel && localModelSupport !== 'available' && (
+                <button
+                  type="button"
+                  disabled={isPreparingDeviceModel}
+                  onClick={onPrepareDeviceModel}
+                  className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-lg border border-cyan-500/60 bg-cyan-500/20 px-3 py-1.5 text-xs font-bold text-cyan-950 dark:text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-60 cursor-pointer"
+                >
+                  {isPreparingDeviceModel ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Cpu className="h-3.5 w-3.5" />
+                  )}
+                  <span>
+                    {isPreparingDeviceModel ? t.preparingDeviceModelBtn : t.prepareDeviceModelBtn}
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
 
         {/* Starter Questions when in New Chat */}
         {!activeConversation && (
@@ -519,8 +591,7 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
                                 <span
                                   dir="ltr"
                                   className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
-                                    msg.provider === 'firebase-ai-on-device' ||
-                                    msg.provider === 'on-device-browser'
+                                    msg.provider === 'firebase-ai-on-device'
                                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
                                       : msg.provider === 'firebase-ai-cloud'
                                         ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-800 dark:text-cyan-200'

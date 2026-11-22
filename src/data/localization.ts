@@ -217,6 +217,8 @@ export interface LocalizationBundle {
   helperVoiceUnsupported: string;
   offlineAiUnavailableMsg: (solar: SolarWeatherState | null) => string;
   offlineGuideActiveNote: string;
+  offlineNanoAndGuideNote: string;
+  askAiNanoPromptNote: string;
   networkAiUnavailableMsg: string;
   timeoutAiUnavailableMsg: string;
   rateLimitAiUnavailableMsg: string;
@@ -626,6 +628,10 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     },
     offlineGuideActiveNote:
       'Internet is off — Offline Local Guide is active and can still answer basic questions using your saved space report.',
+    offlineNanoAndGuideNote:
+      'Internet is off — short single-turn English questions can run on-device via Gemini Nano, and the Offline Local Guide handles saved-data questions.',
+    askAiNanoPromptNote:
+      'Desktop Chrome Gemini Nano is supported here for fast, offline-capable short English answers. Initialize it below when ready.',
     networkAiUnavailableMsg:
       'Could not reach AI right now. Check your internet and try again.',
     timeoutAiUnavailableMsg:
@@ -636,7 +642,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-on-device': 'ON_DEVICE — Gemini Nano',
       'firebase-ai-cloud': 'IN_CLOUD — Firebase AI Logic',
       'server-gemini': 'SERVER BACKUP — /api/gemini/chat',
-      'on-device-browser': 'ON_DEVICE — Gemini Nano',
+      'on-device-browser': 'Legacy Browser Local Mode',
       'offline-local-guide': 'OFFLINE LOCAL GUIDE — Saved Local Data',
       'offline-unavailable': 'Could not reply',
     },
@@ -1203,6 +1209,10 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     },
     offlineGuideActiveNote:
       'انٹرنیٹ بند ہے — آف لائن مقامی رہنما چالو ہے اور آپ محفوظ معلومات کی مدد سے بنیادی اردو سوالات ابھی بھی پوچھ سکتے ہیں۔',
+    offlineNanoAndGuideNote:
+      'انٹرنیٹ بند ہے — انگریزی کے مختصر نئے سوالات مقامی Gemini Nano پر اور بنیادی سوالات آف لائن مقامی رہنما پر چل سکتے ہیں۔',
+    askAiNanoPromptNote:
+      'اس Desktop Chrome میں مختصر انگریزی جوابات کے لیے Gemini Nano دستیاب ہے۔ آپ یہیں سے اسے تیار کر سکتے ہیں۔',
     networkAiUnavailableMsg:
       'ابھی اے آئی سے رابطہ نہیں ہو رہا۔ انٹرنیٹ چیک کرکے دوبارہ کوشش کریں۔',
     timeoutAiUnavailableMsg:
@@ -1213,7 +1223,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-on-device': 'ON_DEVICE — Gemini Nano',
       'firebase-ai-cloud': 'IN_CLOUD — Firebase AI Logic',
       'server-gemini': 'SERVER BACKUP — /api/gemini/chat',
-      'on-device-browser': 'ON_DEVICE — Gemini Nano',
+      'on-device-browser': 'پرانا براؤزر مقامی موڈ',
       'offline-local-guide': 'OFFLINE LOCAL GUIDE — محفوظ مقامی معلومات',
       'offline-unavailable': 'جواب نہیں مل سکا',
     },
@@ -1779,6 +1789,10 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     },
     offlineGuideActiveNote:
       'इंटरनेट बंद है — ऑफ़लाइन स्थानीय गाइड चालू है, आप सहेजी जानकारी से बुनियादी सवाल अभी भी पूछ सकते हैं।',
+    offlineNanoAndGuideNote:
+      'इंटरनेट बंद है — छोटे नए अंग्रेज़ी सवाल स्थानीय Gemini Nano पर और बुनियादी सवाल ऑफ़लाइन स्थानीय गाइड पर चल सकते हैं।',
+    askAiNanoPromptNote:
+      'इस Desktop Chrome में छोटे अंग्रेज़ी जवाबों के लिए Gemini Nano उपलब्ध है। आप इसे यहीं से तैयार कर सकते हैं।',
     networkAiUnavailableMsg:
       'अभी एआई से संपर्क नहीं हो रहा है। इंटरनेट जाँचकर फिर से कोशिश करें।',
     timeoutAiUnavailableMsg:
@@ -1789,7 +1803,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-on-device': 'ON_DEVICE — Gemini Nano',
       'firebase-ai-cloud': 'IN_CLOUD — Firebase AI Logic',
       'server-gemini': 'SERVER BACKUP — /api/gemini/chat',
-      'on-device-browser': 'ON_DEVICE — Gemini Nano',
+      'on-device-browser': 'पुराना ब्राउज़र स्थानीय मोड',
       'offline-local-guide': 'OFFLINE LOCAL GUIDE — सहेजी स्थानीय जानकारी',
       'offline-unavailable': 'जवाब नहीं मिल सका',
     },
@@ -2353,6 +2367,10 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     },
     offlineGuideActiveNote:
       'ఇంటర్నెట్ ఆఫ్‌లో ఉంది — ఆఫ్‌లైన్ స్థానిక గైడ్ సిద్ధంగా ఉంది, సేవ్ చేసిన వివరాలతో ప్రాథమిక ప్రశ్నలు అడగవచ్చు.',
+    offlineNanoAndGuideNote:
+      'ఇంటర్నెట్ ఆఫ్‌లో ఉంది — చిన్న ఆంగ్ల ప్రశ్నలు స్థానిక Gemini Nano లో మరియు ప్రాథమిక ప్రశ్నలు ఆఫ్‌లైన్ స్థానిక గైడ్‌లో పనిచేస్తాయి.',
+    askAiNanoPromptNote:
+      'ఈ Desktop Chrome లో చిన్న ఆంగ్ల సమాధానాల కోసం Gemini Nano అందుబాటులో ఉంది. ఇక్కడే దాన్ని సిద్ధం చేయవచ్చు.',
     networkAiUnavailableMsg:
       'ఇప్పుడు ఏఐతో కలవడం లేదు. ఇంటర్నెట్ చూసి మళ్ళీ ప్రయత్నించండి.',
     timeoutAiUnavailableMsg:
@@ -2363,7 +2381,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-on-device': 'ON_DEVICE — Gemini Nano',
       'firebase-ai-cloud': 'IN_CLOUD — Firebase AI Logic',
       'server-gemini': 'SERVER BACKUP — /api/gemini/chat',
-      'on-device-browser': 'ON_DEVICE — Gemini Nano',
+      'on-device-browser': 'పాత బ్రౌజర్ స్థానిక మోడ్',
       'offline-local-guide': 'OFFLINE LOCAL GUIDE — సేవ్ చేసిన స్థానిక వివరాలు',
       'offline-unavailable': 'సమాధానం రాలేదు',
     },
@@ -2927,6 +2945,10 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     },
     offlineGuideActiveNote:
       'ಇಂಟರ್ನೆಟ್ ಆಫ್ ಆಗಿದೆ — ಆಫ್‌ಲೈನ್ ಸ್ಥಳೀಯ ಮಾರ್ಗದರ್ಶಿ ಸಕ್ರಿಯವಾಗಿದೆ, ಉಳಿಸಿದ ಮಾಹಿತಿಯಿಂದ ಮೂಲ ಪ್ರಶ್ನೆಗಳನ್ನು ಕೇಳಬಹುದು.',
+    offlineNanoAndGuideNote:
+      'ಇಂಟರ್ನೆಟ್ ಆಫ್ ಆಗಿದೆ — ಸಣ್ಣ ಇಂಗ್ಲಿಷ್ ಪ್ರಶ್ನೆಗಳು ಸ್ಥಳೀಯ Gemini Nano ಮೂಲಕ ಮತ್ತು ಮೂಲ ಪ್ರಶ್ನೆಗಳು ಆಫ್‌ಲೈನ್ ಸ್ಥಳೀಯ ಮಾರ್ಗದರ್ಶಿಯಲ್ಲಿ ನಡೆಯುತ್ತವೆ.',
+    askAiNanoPromptNote:
+      'ಈ Desktop Chrome ನಲ್ಲಿ ಸಣ್ಣ ಇಂಗ್ಲಿಷ್ ಉತ್ತರಗಳಿಗೆ Gemini Nano ಲಭ್ಯವಿದೆ. ನೀವು ಇಲ್ಲಿಂದಲೇ ಅದನ್ನು ಸಿದ್ಧಪಡಿಸಬಹುದು.',
     networkAiUnavailableMsg:
       'ಈಗ ಎಐ ಜೊತೆ ಸಂಪರ್ಕ ಆಗುತ್ತಿಲ್ಲ. ಇಂಟರ್ನೆಟ್ ನೋಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
     timeoutAiUnavailableMsg:
@@ -2937,7 +2959,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-on-device': 'ON_DEVICE — Gemini Nano',
       'firebase-ai-cloud': 'IN_CLOUD — Firebase AI Logic',
       'server-gemini': 'SERVER BACKUP — /api/gemini/chat',
-      'on-device-browser': 'ON_DEVICE — Gemini Nano',
+      'on-device-browser': 'ಹಳೆಯ ಬ್ರೌಸರ್ ಸ್ಥಳೀಯ ಮೋಡ್',
       'offline-local-guide': 'OFFLINE LOCAL GUIDE — ಉಳಿಸಿದ ಸ್ಥಳೀಯ ಮಾಹಿತಿ',
       'offline-unavailable': 'ಉತ್ತರ ಸಿಗಲಿಲ್ಲ',
     },

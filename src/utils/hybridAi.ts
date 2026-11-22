@@ -13,7 +13,6 @@ let firebaseAiCloudBlockedUntil = 0;
 
 interface GlobalLanguageModelApi {
   availability?: (options?: Record<string, unknown>) => Promise<string>;
-  capabilities?: () => Promise<{ available?: string }>;
 }
 
 const ENGLISH_ON_DEVICE_CREATE_OPTIONS = {
@@ -25,9 +24,8 @@ function getBrowserLanguageModelApi(): GlobalLanguageModelApi | null {
   if (typeof window === 'undefined') return null;
   const w = window as unknown as {
     LanguageModel?: GlobalLanguageModelApi;
-    ai?: { languageModel?: GlobalLanguageModelApi };
   };
-  return w.LanguageModel ?? w.ai?.languageModel ?? null;
+  return w.LanguageModel ?? null;
 }
 
 export async function probeOnDeviceLocalModel(): Promise<{
@@ -35,37 +33,31 @@ export async function probeOnDeviceLocalModel(): Promise<{
   detail: string;
 }> {
   const api = getBrowserLanguageModelApi();
-  if (!api) {
+  if (!api || typeof api.availability !== 'function') {
     return {
       support: 'unsupported',
-      detail: 'Chrome Prompt API (Gemini Nano) is not exposed in this browser or mobile device.',
+      detail: 'Chrome Prompt API (window.LanguageModel) is not exposed in this browser or mobile device.',
     };
   }
 
   try {
-    if (typeof api.availability === 'function') {
-      const status = await api.availability(ENGLISH_ON_DEVICE_CREATE_OPTIONS);
-      if (status === 'available' || status === 'readily') {
-        return { support: 'available', detail: 'Desktop Chrome Gemini Nano is ready for short English prompts.' };
-      }
-      if (status === 'downloadable' || status === 'downloading' || status === 'after-download') {
-        return { support: 'downloadable', detail: 'Gemini Nano is supported here and needs download/initialization.' };
-      }
+    const status = await api.availability(ENGLISH_ON_DEVICE_CREATE_OPTIONS);
+    if (status === 'available' || status === 'readily') {
       return {
-        support: 'unsupported',
-        detail: `Chrome Prompt API reported "${status}" on this device.`,
+        support: 'available',
+        detail: 'Desktop Chrome Gemini Nano is ready for short English prompts.',
       };
     }
-    if (typeof api.capabilities === 'function') {
-      const cap = await api.capabilities();
-      if (cap?.available === 'readily') {
-        return { support: 'available', detail: 'Desktop Chrome Gemini Nano is ready for short English prompts.' };
-      }
-      if (cap?.available === 'after-download') {
-        return { support: 'downloadable', detail: 'Gemini Nano is supported here and needs download/initialization.' };
-      }
+    if (status === 'downloadable' || status === 'downloading' || status === 'after-download') {
+      return {
+        support: 'downloadable',
+        detail: 'Gemini Nano is supported here and needs download/initialization.',
+      };
     }
-    return { support: 'unsupported', detail: 'On-device Gemini Nano is unavailable on this browser.' };
+    return {
+      support: 'unsupported',
+      detail: `Chrome Prompt API reported "${status}" on this device.`,
+    };
   } catch {
     return { support: 'unsupported', detail: 'On-device Gemini Nano check failed on this browser.' };
   }
@@ -202,7 +194,6 @@ export async function askHybridSentinel(params: {
   history: HelperMessage[];
   offlineMode: boolean;
   preferOnDeviceFirst: boolean;
-  localModelSupport?: LocalModelSupport;
   offlineUnavailableMsg: string;
   networkUnavailableMsg: string;
   timeoutUnavailableMsg?: string;
@@ -212,6 +203,7 @@ export async function askHybridSentinel(params: {
   provider: AiProviderKind;
   errorKind: AiErrorKind;
   canRetry: boolean;
+  detectedLocalSupport: LocalModelSupport;
 }> {
   const {
     question,
@@ -220,7 +212,6 @@ export async function askHybridSentinel(params: {
     history,
     offlineMode,
     preferOnDeviceFirst,
-    localModelSupport,
     offlineUnavailableMsg,
     networkUnavailableMsg,
     timeoutUnavailableMsg,
@@ -243,9 +234,8 @@ export async function askHybridSentinel(params: {
     !isShortSingleTurnEnglish
   );
 
-  // Check real local model capability dynamically only if needed
-  const resolvedLocalSupport =
-    localModelSupport ?? (await probeOnDeviceLocalModel()).support;
+  // Always run a fresh capability probe instead of relying on stale React state
+  const resolvedLocalSupport = (await probeOnDeviceLocalModel()).support;
 
   // 1. Offline Mode OR browser physically offline
   if (offlineMode || isBrowserOffline) {
@@ -268,6 +258,7 @@ export async function askHybridSentinel(params: {
             provider: 'firebase-ai-on-device',
             errorKind: 'none',
             canRetry: false,
+            detectedLocalSupport: resolvedLocalSupport,
           };
         }
       } catch {
@@ -281,6 +272,7 @@ export async function askHybridSentinel(params: {
       language,
       solar,
       history,
+      localModelSupport: resolvedLocalSupport,
     });
     if (localGuideReply.trim()) {
       return {
@@ -288,6 +280,7 @@ export async function askHybridSentinel(params: {
         provider: 'offline-local-guide',
         errorKind: 'none',
         canRetry: false,
+        detectedLocalSupport: resolvedLocalSupport,
       };
     }
 
@@ -296,6 +289,7 @@ export async function askHybridSentinel(params: {
       provider: 'offline-unavailable',
       errorKind: 'offline-no-local',
       canRetry: true,
+      detectedLocalSupport: resolvedLocalSupport,
     };
   }
 
@@ -331,13 +325,27 @@ export async function askHybridSentinel(params: {
             },
           });
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase AI Logic timeout')), 15000)
-      );
+      // Allow extra warm-up headroom when on-device Gemini Nano may execute first
+      const requestTimeoutMs = usePreferOnDevice ? 30000 : 18000;
+      const abortController = new AbortController();
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          abortController.abort();
+          reject(new Error('Firebase AI Logic timeout'));
+        }, requestTimeoutMs);
+      });
+
       const result = await Promise.race([
-        firebaseModel.generateContent(usePreferOnDevice ? trimmedQ : fullPrompt),
+        firebaseModel.generateContent(usePreferOnDevice ? trimmedQ : fullPrompt, {
+          signal: abortController.signal,
+          timeout: requestTimeoutMs,
+        }),
         timeoutPromise,
-      ]);
+      ]).finally(() => {
+        if (timeoutId) clearTimeout(timeoutId);
+      });
+
       const text = result.response.text().trim();
       if (text) {
         firebaseAiCloudBlockedUntil = 0;
@@ -348,6 +356,7 @@ export async function askHybridSentinel(params: {
             source === InferenceSource.ON_DEVICE ? 'firebase-ai-on-device' : 'firebase-ai-cloud',
           errorKind: 'none',
           canRetry: false,
+          detectedLocalSupport: resolvedLocalSupport,
         };
       }
     } catch (err) {
@@ -386,6 +395,7 @@ export async function askHybridSentinel(params: {
           provider: 'firebase-ai-on-device',
           errorKind: 'none',
           canRetry: false,
+          detectedLocalSupport: resolvedLocalSupport,
         };
       }
     } catch {
@@ -417,6 +427,7 @@ export async function askHybridSentinel(params: {
             provider: 'server-gemini',
             errorKind: 'none',
             canRetry: false,
+            detectedLocalSupport: resolvedLocalSupport,
           };
         }
       } else {
@@ -453,6 +464,7 @@ export async function askHybridSentinel(params: {
       language,
       solar,
       history,
+      localModelSupport: resolvedLocalSupport,
     });
     if (localGuideReply.trim()) {
       return {
@@ -460,6 +472,7 @@ export async function askHybridSentinel(params: {
         provider: 'offline-local-guide',
         errorKind: 'none',
         canRetry: false,
+        detectedLocalSupport: resolvedLocalSupport,
       };
     }
   }
@@ -477,5 +490,6 @@ export async function askHybridSentinel(params: {
     provider: 'offline-unavailable',
     errorKind: lastErrorKind,
     canRetry: true,
+    detectedLocalSupport: resolvedLocalSupport,
   };
 }

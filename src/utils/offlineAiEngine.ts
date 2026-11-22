@@ -1,5 +1,10 @@
 import { formatDigits, LOCALIZATION } from '../data/localization';
-import { HelperMessage, LanguageCode, SolarWeatherState } from '../types/sentinel';
+import {
+  HelperMessage,
+  LanguageCode,
+  LocalModelSupport,
+  SolarWeatherState,
+} from '../types/sentinel';
 import { formatAgeForLanguage, formatFullTimestampForLanguage } from './dateTime';
 
 type OfflineIntent =
@@ -134,7 +139,8 @@ function getSavedMeta(solar: SolarWeatherState | null, lang: LanguageCode) {
 
 function buildUrduOfflineReply(
   intent: OfflineIntent,
-  solar: SolarWeatherState | null
+  solar: SolarWeatherState | null,
+  localModelSupport?: LocalModelSupport
 ): string {
   const t = LOCALIZATION.ur;
   const meta = getSavedMeta(solar, 'ur');
@@ -219,7 +225,11 @@ function buildUrduOfflineReply(
     case 'general-fallback':
     default:
       if (!solar) {
-        return 'ابھی انٹرنیٹ بند ہے اور اس موبائل میں کوئی پرانی رپورٹ محفوظ نہیں ہے، نیز اس براؤزر میں اپنی اے آئی (جیمنائی نینو) بھی موجود نہیں۔ آف لائن رہتے ہوئے آپ خلائی طوفان، موبائل نقشوں، طوفان کے نمبر یا احتیاط کے بارے میں بنیادی سوالات پوچھ سکتے ہیں؛ تفصیلی سوالوں کے لیے انٹرنیٹ آن ہونے پر دوبارہ کوشش کریں۔';
+        const nanoNote =
+          localModelSupport && localModelSupport !== 'unsupported'
+            ? 'اگرچہ براؤزر میں مقامی انگریزی ماڈل موجود ہے، مگر اردو یا تفصیلی گفتگو کے لیے انٹرنیٹ ضروری ہے۔'
+            : 'نیز اس براؤزر میں اپنی اے آئی (جیمنائی نینو) بھی موجود نہیں۔';
+        return `ابھی انٹرنیٹ بند ہے اور اس موبائل میں کوئی پرانی رپورٹ محفوظ نہیں ہے، ${nanoNote} آف لائن رہتے ہوئے آپ خلائی طوفان، موبائل نقشوں، طوفان کے نمبر یا احتیاط کے بارے میں بنیادی سوالات پوچھ سکتے ہیں؛ تفصیلی سوالوں کے لیے انٹرنیٹ آن ہونے پر دوبارہ کوشش کریں۔`;
       }
       return `${savedPrefix}${t.severityDescriptions[solar.severity]} ${t.gpsPlainScaleNote(solar.navigationRiskLevel)} نوٹ: انٹرنیٹ بند ہونے کی وجہ سے ابھی صرف محفوظ معلومات پر مبنی بنیادی آف لائن رہنما جواب دے رہا ہے؛ تفصیلی یا مختلف موضوع کے سوال کے لیے انٹرنیٹ آن کر کے دوبارہ پوچھیں۔`;
   }
@@ -227,7 +237,8 @@ function buildUrduOfflineReply(
 
 function buildEnglishOfflineReply(
   intent: OfflineIntent,
-  solar: SolarWeatherState | null
+  solar: SolarWeatherState | null,
+  localModelSupport?: LocalModelSupport
 ): string {
   const t = LOCALIZATION.en;
   const meta = getSavedMeta(solar, 'en');
@@ -282,9 +293,12 @@ function buildEnglishOfflineReply(
         : `${savedPrefix}Tap Refresh once online to save current live NOAA measurements on your phone.`;
     case 'general-fallback':
     default:
-      return solar
-        ? `${savedPrefix}${t.severityDescriptions[solar.severity]} ${t.gpsPlainScaleNote(solar.navigationRiskLevel)} Note: this Offline Local Guide answers basic saved-data questions without internet; reconnect for open-ended cloud AI questions.`
-        : `${savedPrefix}While offline without built-in Gemini Nano, I can answer general space-weather basics (GPS impact, Kp scale, safety). Reconnect briefly to fetch live NOAA data or ask custom questions.`;
+      if (solar) {
+        return `${savedPrefix}${t.severityDescriptions[solar.severity]} ${t.gpsPlainScaleNote(solar.navigationRiskLevel)} Note: this Offline Local Guide answers basic saved-data questions without internet; reconnect for open-ended cloud AI questions.`;
+      }
+      return localModelSupport === 'available'
+        ? `${savedPrefix}On-device Gemini Nano only handles short single-turn English prompts, so the Offline Local Guide is answering general space-weather basics (GPS impact, Kp scale, safety) here. Reconnect briefly for live NOAA data or multi-turn cloud AI.`
+        : `${savedPrefix}While offline without ready built-in Gemini Nano, the Offline Local Guide can answer general space-weather basics (GPS impact, Kp scale, safety). Reconnect briefly to fetch live NOAA data or ask custom questions.`;
   }
 }
 
@@ -396,15 +410,16 @@ export function generateOfflineSpaceWeatherReply(params: {
   language: LanguageCode;
   solar: SolarWeatherState | null;
   history: HelperMessage[];
+  localModelSupport?: LocalModelSupport;
 }): string {
-  const { question, language, solar, history } = params;
+  const { question, language, solar, history, localModelSupport } = params;
   const intent = detectIntent(question, history);
 
   switch (language) {
     case 'ur':
-      return buildUrduOfflineReply(intent, solar);
+      return buildUrduOfflineReply(intent, solar, localModelSupport);
     case 'en':
-      return buildEnglishOfflineReply(intent, solar);
+      return buildEnglishOfflineReply(intent, solar, localModelSupport);
     case 'hi':
     case 'te':
     case 'kn':
