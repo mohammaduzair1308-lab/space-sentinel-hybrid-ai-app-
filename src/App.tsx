@@ -57,7 +57,11 @@ import {
   subscribeUserFavorites,
 } from './utils/firestoreService';
 import { exportStandaloneReportHtml } from './utils/htmlExporter';
-import { askHybridSentinel, probeOnDeviceLocalModel } from './utils/hybridAi';
+import {
+  askHybridSentinel,
+  initializeDeviceGeminiNano,
+  probeOnDeviceLocalModel,
+} from './utils/hybridAi';
 import {
   fetchLiveSolarWeather,
   generateScenarioState,
@@ -96,6 +100,12 @@ export default function App() {
   const [fetchError, setFetchError] = useState<boolean>(false);
   const [connectionRestored, setConnectionRestored] = useState<boolean>(false);
   const [localModelSupport, setLocalModelSupport] = useState<LocalModelSupport>('unsupported');
+  const [isPreparingDeviceModel, setIsPreparingDeviceModel] = useState<boolean>(false);
+  const [deviceModelProgress, setDeviceModelProgress] = useState<number | null>(null);
+  const [deviceModelStatus, setDeviceModelStatus] = useState<{
+    code: 'ready' | 'unsupported' | 'incomplete' | 'error';
+    detail?: string;
+  } | null>(null);
 
   const [user, setUser] = useState<AppUser | null>(null);
   const [authError, setAuthError] = useState<boolean>(false);
@@ -466,6 +476,32 @@ export default function App() {
   const handleCheckLocalModel = async () => {
     const probe = await probeOnDeviceLocalModel();
     setLocalModelSupport(probe.support);
+    if (probe.support === 'available') {
+      setDeviceModelStatus({ code: 'ready' });
+    } else if (probe.support === 'unsupported') {
+      setDeviceModelStatus({ code: 'unsupported' });
+    } else {
+      setDeviceModelStatus(null);
+    }
+  };
+
+  const handlePrepareDeviceModel = async () => {
+    if (isPreparingDeviceModel) return;
+    setIsPreparingDeviceModel(true);
+    setDeviceModelProgress(null);
+    setDeviceModelStatus(null);
+    try {
+      const res = await initializeDeviceGeminiNano((pct) => {
+        setDeviceModelProgress(pct);
+      });
+      setLocalModelSupport(res.support);
+      setDeviceModelStatus({
+        code: res.reasonCode,
+        detail: res.reasonCode === 'error' ? res.detail : undefined,
+      });
+    } finally {
+      setIsPreparingDeviceModel(false);
+    }
   };
 
   const handleToggleEmergencyAlert = () => {
@@ -1263,6 +1299,9 @@ export default function App() {
               offlineMode={offlineMode}
               preferOnDeviceFirst={preferOnDeviceFirst}
               localModelSupport={localModelSupport}
+              isPreparingDeviceModel={isPreparingDeviceModel}
+              deviceModelProgress={deviceModelProgress}
+              deviceModelStatus={deviceModelStatus}
               appCheckActive={appCheckStatus.active}
               saveConsent={saveConsent}
               onSignInGoogle={handleSignInGoogle}
@@ -1275,6 +1314,7 @@ export default function App() {
               onToggleOfflineMode={handleToggleManualOffline}
               onTogglePreferOnDevice={() => setPreferOnDeviceFirst((p) => !p)}
               onCheckLocalModel={handleCheckLocalModel}
+              onPrepareDeviceModel={handlePrepareDeviceModel}
               onToggleSaveConsent={() => setSaveConsent((c) => !c)}
               onClearAllSaved={handleClearLocalData}
             />

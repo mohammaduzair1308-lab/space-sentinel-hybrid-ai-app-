@@ -12,9 +12,14 @@ import { generateOfflineSpaceWeatherReply } from './offlineAiEngine';
 let firebaseAiCloudBlockedUntil = 0;
 
 interface GlobalLanguageModelApi {
-  availability?: () => Promise<string>;
+  availability?: (options?: Record<string, unknown>) => Promise<string>;
   capabilities?: () => Promise<{ available?: string }>;
 }
+
+const ENGLISH_ON_DEVICE_CREATE_OPTIONS = {
+  expectedInputs: [{ type: 'text' as const, languages: ['en'] }],
+  expectedOutputs: [{ type: 'text' as const, languages: ['en'] }],
+};
 
 function getBrowserLanguageModelApi(): GlobalLanguageModelApi | null {
   if (typeof window === 'undefined') return null;
@@ -33,32 +38,106 @@ export async function probeOnDeviceLocalModel(): Promise<{
   if (!api) {
     return {
       support: 'unsupported',
-      detail: 'Browser does not expose Built-in On-Device LanguageModel API',
+      detail: 'Chrome Prompt API (Gemini Nano) is not exposed in this browser or mobile device.',
     };
   }
 
   try {
     if (typeof api.availability === 'function') {
-      const status = await api.availability();
+      const status = await api.availability(ENGLISH_ON_DEVICE_CREATE_OPTIONS);
       if (status === 'available' || status === 'readily') {
-        return { support: 'available', detail: 'On-Device Built-in Model is ready' };
+        return { support: 'available', detail: 'Desktop Chrome Gemini Nano is ready for short English prompts.' };
       }
-      if (status === 'downloadable' || status === 'after-download') {
-        return { support: 'downloadable', detail: 'On-Device model requires browser download' };
+      if (status === 'downloadable' || status === 'downloading' || status === 'after-download') {
+        return { support: 'downloadable', detail: 'Gemini Nano is supported here and needs download/initialization.' };
       }
+      return {
+        support: 'unsupported',
+        detail: `Chrome Prompt API reported "${status}" on this device.`,
+      };
     }
     if (typeof api.capabilities === 'function') {
       const cap = await api.capabilities();
       if (cap?.available === 'readily') {
-        return { support: 'available', detail: 'On-Device Built-in Model is ready' };
+        return { support: 'available', detail: 'Desktop Chrome Gemini Nano is ready for short English prompts.' };
       }
       if (cap?.available === 'after-download') {
-        return { support: 'downloadable', detail: 'On-Device model requires browser download' };
+        return { support: 'downloadable', detail: 'Gemini Nano is supported here and needs download/initialization.' };
       }
     }
-    return { support: 'unsupported', detail: 'On-device model unavailable on this browser' };
+    return { support: 'unsupported', detail: 'On-device Gemini Nano is unavailable on this browser.' };
   } catch {
-    return { support: 'unsupported', detail: 'On-device model check failed' };
+    return { support: 'unsupported', detail: 'On-device Gemini Nano check failed on this browser.' };
+  }
+}
+
+export interface DeviceModelInitResult {
+  ok: boolean;
+  support: LocalModelSupport;
+  reasonCode: 'ready' | 'unsupported' | 'incomplete' | 'error';
+  detail: string;
+}
+
+/**
+ * Triggers official Firebase AI Logic `initializeDeviceModel()` on Desktop Chrome
+ * when Chrome's Prompt API is exposed (must be called from a user gesture).
+ */
+export async function initializeDeviceGeminiNano(
+  onDownloadProgress?: (percent: number) => void
+): Promise<DeviceModelInitResult> {
+  const probe = await probeOnDeviceLocalModel();
+  if (probe.support === 'unsupported') {
+    return {
+      ok: false,
+      support: 'unsupported',
+      reasonCode: 'unsupported',
+      detail: probe.detail,
+    };
+  }
+
+  try {
+    const deviceModel = getGenerativeModel(firebaseAi, {
+      mode: InferenceMode.PREFER_ON_DEVICE,
+      onDeviceParams: {
+        createOptions: ENGLISH_ON_DEVICE_CREATE_OPTIONS,
+      },
+      inCloudParams: {
+        model: 'gemini-2.5-flash',
+      },
+    });
+
+    onDownloadProgress?.(probe.support === 'available' ? 100 : 0);
+    await deviceModel.initializeDeviceModel((progressValue) => {
+      const pct = Math.max(0, Math.min(100, Math.round(progressValue * 100)));
+      onDownloadProgress?.(pct);
+    });
+
+    const verified = await probeOnDeviceLocalModel();
+    if (verified.support === 'available') {
+      onDownloadProgress?.(100);
+      return {
+        ok: true,
+        support: 'available',
+        reasonCode: 'ready',
+        detail: verified.detail,
+      };
+    }
+
+    return {
+      ok: false,
+      support: verified.support,
+      reasonCode: 'incomplete',
+      detail: verified.detail,
+    };
+  } catch (err) {
+    const afterProbe = await probeOnDeviceLocalModel();
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      support: afterProbe.support,
+      reasonCode: afterProbe.support === 'unsupported' ? 'unsupported' : 'error',
+      detail: message || afterProbe.detail,
+    };
   }
 }
 
@@ -74,7 +153,8 @@ function buildContextPrompt(
   question: string,
   language: LanguageCode,
   solar: SolarWeatherState | null,
-  history: HelperMessage[]
+  history: HelperMessage[],
+  includeHistory: boolean
 ): { system: string; fullPrompt: string } {
   let telemetryLine = 'Telemetry unavailable right now.';
   if (solar) {
@@ -99,6 +179,10 @@ function buildContextPrompt(
     'Honesty & scientific accuracy rules: Only cite numbers present in the telemetry. NOAA G1 storm starts strictly at Kp 5 (Kp 0-4 is G0, Kp 4 is unrest NOT G1). If source=offline-cache, explicitly state it is previously saved data and state its age from cacheAgeMinutes. If feedDiscrepancyKind is warning-higher-than-live or forecast-higher-than-live, clearly distinguish calm current Kp from upcoming warnings/forecasts. If solar wind or exact local GPS meter drift is unavailable, say plainly it is not shown here. Do not print raw URLs in prose.',
     telemetryLine,
   ].join(' ');
+
+  if (!includeHistory || history.length === 0) {
+    return { system, fullPrompt: question };
+  }
 
   const recent = history
     .slice(-6)
@@ -143,26 +227,40 @@ export async function askHybridSentinel(params: {
     rateLimitUnavailableMsg,
   } = params;
 
-  const { system, fullPrompt } = buildContextPrompt(question, language, solar, history);
   const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+  const trimmedQ = question.trim();
 
-  // Check real local model capability dynamically if unknown
+  // Official Firebase Hybrid rule: On-device Gemini Nano on Web only supports short single-turn English prompts.
+  // Multi-turn chats and Urdu/Hindi/Telugu/Kannada route to Cloud online, or Offline Local Guide when offline.
+  const isShortSingleTurnEnglish =
+    language === 'en' && history.length === 0 && trimmedQ.length <= 280;
+
+  const { system, fullPrompt } = buildContextPrompt(
+    trimmedQ,
+    language,
+    solar,
+    history,
+    !isShortSingleTurnEnglish
+  );
+
+  // Check real local model capability dynamically only if needed
   const resolvedLocalSupport =
     localModelSupport ?? (await probeOnDeviceLocalModel()).support;
 
-  // 1. Offline Mode OR browser physically offline -> ONLY_ON_DEVICE if supported
+  // 1. Offline Mode OR browser physically offline
   if (offlineMode || isBrowserOffline) {
-    if (resolvedLocalSupport === 'available') {
+    if (isShortSingleTurnEnglish && resolvedLocalSupport === 'available') {
       try {
         const localModel = getGenerativeModel(firebaseAi, {
           mode: InferenceMode.ONLY_ON_DEVICE,
           onDeviceParams: {
             createOptions: {
+              ...ENGLISH_ON_DEVICE_CREATE_OPTIONS,
               initialPrompts: [{ role: 'system', content: [{ type: 'text', value: system }] }],
             },
           },
         });
-        const result = await localModel.generateContent(fullPrompt);
+        const result = await localModel.generateContent(trimmedQ);
         const text = result.response.text().trim();
         if (text) {
           return {
@@ -173,13 +271,13 @@ export async function askHybridSentinel(params: {
           };
         }
       } catch {
-        // Fall through to honest offline unavailable message
+        // Fall through to Offline Local Guide
       }
     }
 
-    // Practical mobile fallback: built-in local Space Weather Guide (no false Gemini Nano claim)
+    // Practical mobile & non-English offline fallback: built-in local Space Weather Guide
     const localGuideReply = generateOfflineSpaceWeatherReply({
-      question,
+      question: trimmedQ,
       language,
       solar,
       history,
@@ -201,30 +299,45 @@ export async function askHybridSentinel(params: {
     };
   }
 
-  // 2. Native Firebase AI Logic Hybrid Inference (PREFER_ON_DEVICE / PREFER_IN_CLOUD)
-  const onDeviceOptions = {
-    createOptions: {
-      initialPrompts: [{ role: 'system' as const, content: [{ type: 'text' as const, value: system }] }],
-    },
-  };
-
+  // 2. Online Firebase AI Logic:
+  //    - Short single-turn English -> PREFER_ON_DEVICE (runs Gemini Nano if ready, else Firebase Cloud)
+  //    - Multi-turn OR Urdu/Hindi/Telugu/Kannada -> ONLY_IN_CLOUD (Firebase AI Logic Cloud)
   const isFirebaseCloudInCooldown = Date.now() < firebaseAiCloudBlockedUntil;
 
   if (!isFirebaseCloudInCooldown) {
     try {
-      const hybridModel = getGenerativeModel(firebaseAi, {
-        mode: preferOnDeviceFirst ? InferenceMode.PREFER_ON_DEVICE : InferenceMode.PREFER_IN_CLOUD,
-        onDeviceParams: onDeviceOptions,
-        inCloudParams: {
-          model: 'gemini-2.5-flash',
-          systemInstruction: system,
-        },
-      });
+      const usePreferOnDevice = isShortSingleTurnEnglish && preferOnDeviceFirst;
+      const firebaseModel = usePreferOnDevice
+        ? getGenerativeModel(firebaseAi, {
+            mode: InferenceMode.PREFER_ON_DEVICE,
+            onDeviceParams: {
+              createOptions: {
+                ...ENGLISH_ON_DEVICE_CREATE_OPTIONS,
+                initialPrompts: [
+                  { role: 'system' as const, content: [{ type: 'text' as const, value: system }] },
+                ],
+              },
+            },
+            inCloudParams: {
+              model: 'gemini-2.5-flash',
+              systemInstruction: system,
+            },
+          })
+        : getGenerativeModel(firebaseAi, {
+            mode: InferenceMode.ONLY_IN_CLOUD,
+            inCloudParams: {
+              model: 'gemini-2.5-flash',
+              systemInstruction: system,
+            },
+          });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Firebase AI Logic timeout')), 15000)
       );
-      const result = await Promise.race([hybridModel.generateContent(fullPrompt), timeoutPromise]);
+      const result = await Promise.race([
+        firebaseModel.generateContent(usePreferOnDevice ? trimmedQ : fullPrompt),
+        timeoutPromise,
+      ]);
       const text = result.response.text().trim();
       if (text) {
         firebaseAiCloudBlockedUntil = 0;
@@ -240,20 +353,32 @@ export async function askHybridSentinel(params: {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/401|403|404|permission_denied|unauthenticated|forbidden/i.test(msg)) {
-        // Short cooldown so transient token warm-up issues recover without hammering blocked requests
         firebaseAiCloudBlockedUntil = Date.now() + 45000;
       }
     }
   }
 
-  // If Firebase AI Cloud is temporarily in cooldown but user prefers on-device & browser supports it, still attempt ONLY_ON_DEVICE
-  if (Date.now() < firebaseAiCloudBlockedUntil && preferOnDeviceFirst && resolvedLocalSupport === 'available') {
+  // If Firebase AI Cloud is in cooldown and this is a short single-turn English question on a supported device,
+  // still try ONLY_ON_DEVICE before falling back to the server endpoint.
+  if (
+    Date.now() < firebaseAiCloudBlockedUntil &&
+    isShortSingleTurnEnglish &&
+    preferOnDeviceFirst &&
+    resolvedLocalSupport === 'available'
+  ) {
     try {
       const localModel = getGenerativeModel(firebaseAi, {
         mode: InferenceMode.ONLY_ON_DEVICE,
-        onDeviceParams: onDeviceOptions,
+        onDeviceParams: {
+          createOptions: {
+            ...ENGLISH_ON_DEVICE_CREATE_OPTIONS,
+            initialPrompts: [
+              { role: 'system' as const, content: [{ type: 'text' as const, value: system }] },
+            ],
+          },
+        },
       });
-      const result = await localModel.generateContent(fullPrompt);
+      const result = await localModel.generateContent(trimmedQ);
       const text = result.response.text().trim();
       if (text) {
         return {
@@ -268,7 +393,7 @@ export async function askHybridSentinel(params: {
     }
   }
 
-  // 4. Verified Server-Side @google/genai endpoint (/api/gemini/chat) with 1 clean automatic retry
+  // 3. Verified Server-Side @google/genai backup (/api/gemini/chat)
   let lastErrorKind: AiErrorKind = 'network';
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -277,7 +402,7 @@ export async function askHybridSentinel(params: {
         signal: AbortSignal.timeout(22000),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question,
+          question: trimmedQ,
           language,
           telemetry: solar ?? {},
           history: history.slice(-6).map((m) => ({ sender: m.sender, text: m.text })),
@@ -320,11 +445,11 @@ export async function askHybridSentinel(params: {
     }
   }
 
-  // 5. If browser went offline mid-request, serve honest local guide answer instead of dead failure
+  // 4. If browser went offline mid-request, serve honest local guide answer
   const wentOffline = typeof navigator !== 'undefined' && !navigator.onLine;
   if (wentOffline) {
     const localGuideReply = generateOfflineSpaceWeatherReply({
-      question,
+      question: trimmedQ,
       language,
       solar,
       history,
@@ -339,7 +464,7 @@ export async function askHybridSentinel(params: {
     }
   }
 
-  // 6. Honest failure with retry support (never fabricate a fake AI answer)
+  // 5. Honest failure with retry support
   const resolvedErrorText =
     lastErrorKind === 'rate-limit' && rateLimitUnavailableMsg
       ? rateLimitUnavailableMsg

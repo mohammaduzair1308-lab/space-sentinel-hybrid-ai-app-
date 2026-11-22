@@ -898,10 +898,29 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
 
                   {isAssistant && (
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-800">
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {msg.provider ? `${t.providerLabels[msg.provider]} · ` : ''}
-                        {timeStr}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        {msg.provider && (
+                          <span
+                            dir="ltr"
+                            className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
+                              msg.provider === 'firebase-ai-on-device' ||
+                              msg.provider === 'on-device-browser'
+                                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                                : msg.provider === 'firebase-ai-cloud'
+                                  ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-800 dark:text-cyan-200'
+                                  : msg.provider === 'server-gemini'
+                                    ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-800 dark:text-indigo-200'
+                                    : msg.provider === 'offline-local-guide'
+                                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                                      : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                            }`}
+                          >
+                            {t.providerLabels[msg.provider]}
+                          </span>
+                        )}
+                        {msg.provider && timeStr && <span aria-hidden="true">·</span>}
+                        {timeStr && <span>{timeStr}</span>}
+                      </div>
 
                       <div className="flex flex-wrap items-center gap-2">
                         {isFailed && msg.retryQuestion && (

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
+  Cpu,
   ExternalLink,
+  Loader2,
   LogIn,
   LogOut,
   ShieldCheck,
@@ -27,6 +29,12 @@ interface SettingsViewProps {
   offlineMode: boolean;
   preferOnDeviceFirst: boolean;
   localModelSupport: LocalModelSupport;
+  isPreparingDeviceModel: boolean;
+  deviceModelProgress: number | null;
+  deviceModelStatus: {
+    code: 'ready' | 'unsupported' | 'incomplete' | 'error';
+    detail?: string;
+  } | null;
   appCheckActive: boolean;
   saveConsent: boolean;
   onSignInGoogle: () => void;
@@ -39,6 +47,7 @@ interface SettingsViewProps {
   onToggleOfflineMode: () => void;
   onTogglePreferOnDevice: () => void;
   onCheckLocalModel: () => void;
+  onPrepareDeviceModel: () => void;
   onToggleSaveConsent: () => void;
   onClearAllSaved: () => void;
 }
@@ -56,6 +65,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   offlineMode,
   preferOnDeviceFirst,
   localModelSupport,
+  isPreparingDeviceModel,
+  deviceModelProgress,
+  deviceModelStatus,
   appCheckActive,
   saveConsent,
   onSignInGoogle,
@@ -68,6 +80,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleOfflineMode,
   onTogglePreferOnDevice,
   onCheckLocalModel,
+  onPrepareDeviceModel,
   onToggleSaveConsent,
   onClearAllSaved,
 }) => {
@@ -296,22 +309,74 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               {t.aiLocalExplain}
             </p>
-            <p className="pt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            <p
+              className={`pt-1 text-xs font-semibold ${
+                localModelSupport === 'available'
+                  ? 'text-emerald-700 dark:text-emerald-300'
+                  : localModelSupport === 'downloadable'
+                    ? 'text-cyan-700 dark:text-cyan-300'
+                    : 'text-amber-700 dark:text-amber-300'
+              }`}
+            >
               {t.localModelLabels[localModelSupport]}
             </p>
+
+            {isPreparingDeviceModel && deviceModelProgress !== null && (
+              <div className="mt-2 space-y-1 rounded-xl border border-cyan-500/30 bg-cyan-50/70 dark:bg-cyan-500/10 p-2.5">
+                <div className="text-xs font-semibold text-cyan-800 dark:text-cyan-200">
+                  {t.deviceModelProgressLabel(deviceModelProgress)}
+                </div>
+                <progress
+                  value={deviceModelProgress}
+                  max={100}
+                  className="block h-2 w-full overflow-hidden rounded-full accent-cyan-500"
+                />
+              </div>
+            )}
+
+            {deviceModelStatus && (
+              <p
+                className={`mt-2 rounded-xl border px-3 py-2 text-xs leading-relaxed ${
+                  deviceModelStatus.code === 'ready'
+                    ? 'border-emerald-500/35 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                    : deviceModelStatus.code === 'error'
+                      ? 'border-rose-500/35 bg-rose-50/70 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200'
+                      : 'border-amber-500/35 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200'
+                }`}
+              >
+                {deviceModelStatus.code === 'ready'
+                  ? t.deviceModelReadyNotice
+                  : deviceModelStatus.code === 'unsupported'
+                    ? t.deviceModelUnsupportedNotice
+                    : deviceModelStatus.code === 'incomplete'
+                      ? t.deviceModelIncompleteNotice
+                      : t.deviceModelErrorNotice(deviceModelStatus.detail)}
+              </p>
+            )}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={onToggleOfflineMode}
-              className={`min-h-[40px] rounded-xl border px-3 py-1.5 text-xs font-semibold cursor-pointer ${
-                offlineMode
-                  ? 'border-emerald-500 bg-emerald-500 text-slate-950'
-                  : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200'
-              }`}
+              disabled={isPreparingDeviceModel}
+              onClick={onPrepareDeviceModel}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-cyan-500/60 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-cyan-900 dark:text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-60 cursor-pointer"
             >
-              {offlineMode ? t.card2SimulateActive : t.card2SimulateBtn}
+              {isPreparingDeviceModel ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Cpu className="h-3.5 w-3.5" />
+              )}
+              <span>
+                {isPreparingDeviceModel ? t.preparingDeviceModelBtn : t.prepareDeviceModelBtn}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onCheckLocalModel}
+              className="min-h-[40px] rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-cyan-500 cursor-pointer"
+            >
+              {t.card2CheckBtn}
             </button>
             <button
               type="button"
@@ -322,10 +387,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={onCheckLocalModel}
-              className="min-h-[40px] rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-cyan-500 cursor-pointer"
+              onClick={onToggleOfflineMode}
+              className={`min-h-[40px] rounded-xl border px-3 py-1.5 text-xs font-semibold cursor-pointer ${
+                offlineMode
+                  ? 'border-emerald-500 bg-emerald-500 text-slate-950'
+                  : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200'
+              }`}
             >
-              {t.card2CheckBtn}
+              {offlineMode ? t.card2SimulateActive : t.card2SimulateBtn}
             </button>
           </div>
         </section>
