@@ -151,3 +151,10 @@ Only variable **names** are listed below—never commit actual keys or tokens to
 - **Offline Audio Briefings Cache:** Pre-cache synthesized Urdu/multilingual audio summaries in Cache Storage / IndexedDB for instant offline playback even on phones without local Urdu TTS voices.
 - **Full Installable PWA Support:** Add a Web App Manifest and adaptive app icons (`192x192`, `512x512`, `apple-touch-icon`) for one-tap home-screen installation on Android and iOS.
 - **Expanded Regional Impact Advisories:** Add optional user-selected latitude/region presets for aurora visibility and high-latitude aviation or power-grid notes.
+
+---
+
+## License
+
+This project is licensed under the **Apache License 2.0** (`Copyright 2026 Mohammad Hasib`). See the [LICENSE](./LICENSE) file for the full license text or view it online at https://www.apache.org/licenses/LICENSE-2.0.
+
