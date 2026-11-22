@@ -8,7 +8,7 @@ import {
   SolarWeatherState,
 } from '../types/sentinel';
 
-let firebaseAiCloudBlocked = false;
+let firebaseAiCloudBlockedUntil = 0;
 
 interface GlobalLanguageModelApi {
   availability?: () => Promise<string>;
@@ -191,7 +191,9 @@ export async function askHybridSentinel(params: {
     },
   };
 
-  if (!firebaseAiCloudBlocked) {
+  const isFirebaseCloudInCooldown = Date.now() < firebaseAiCloudBlockedUntil;
+
+  if (!isFirebaseCloudInCooldown) {
     try {
       const hybridModel = getGenerativeModel(firebaseAi, {
         mode: preferOnDeviceFirst ? InferenceMode.PREFER_ON_DEVICE : InferenceMode.PREFER_IN_CLOUD,
@@ -203,11 +205,12 @@ export async function askHybridSentinel(params: {
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase AI Logic timeout')), 10000)
+        setTimeout(() => reject(new Error('Firebase AI Logic timeout')), 15000)
       );
       const result = await Promise.race([hybridModel.generateContent(fullPrompt), timeoutPromise]);
       const text = result.response.text().trim();
       if (text) {
+        firebaseAiCloudBlockedUntil = 0;
         const source = result.response.inferenceSource;
         return {
           text,
@@ -219,14 +222,15 @@ export async function askHybridSentinel(params: {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/401|403|404|app check|permission|unauthorized|api|token/i.test(msg)) {
-        firebaseAiCloudBlocked = true;
+      if (/401|403|404|permission_denied|unauthenticated|forbidden/i.test(msg)) {
+        // Short cooldown so transient token warm-up issues recover without hammering blocked requests
+        firebaseAiCloudBlockedUntil = Date.now() + 45000;
       }
     }
   }
 
-  // If Firebase AI Cloud is blocked (e.g. App Check missing) but user prefers on-device & browser supports it, still attempt ONLY_ON_DEVICE
-  if (firebaseAiCloudBlocked && preferOnDeviceFirst && resolvedLocalSupport === 'available') {
+  // If Firebase AI Cloud is temporarily in cooldown but user prefers on-device & browser supports it, still attempt ONLY_ON_DEVICE
+  if (Date.now() < firebaseAiCloudBlockedUntil && preferOnDeviceFirst && resolvedLocalSupport === 'available') {
     try {
       const localModel = getGenerativeModel(firebaseAi, {
         mode: InferenceMode.ONLY_ON_DEVICE,
