@@ -216,6 +216,7 @@ export interface LocalizationBundle {
   helperThinking: string;
   helperVoiceUnsupported: string;
   offlineAiUnavailableMsg: (solar: SolarWeatherState | null) => string;
+  offlineGuideActiveNote: string;
   networkAiUnavailableMsg: string;
   timeoutAiUnavailableMsg: string;
   rateLimitAiUnavailableMsg: string;
@@ -616,6 +617,8 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
           : 'No earlier report is saved yet.'
       }`;
     },
+    offlineGuideActiveNote:
+      'Internet is off — Offline Local Guide is active and can still answer basic questions using your saved space report.',
     networkAiUnavailableMsg:
       'Could not reach AI right now. Check your internet and try again.',
     timeoutAiUnavailableMsg:
@@ -627,6 +630,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-cloud': 'Online AI',
       'server-gemini': 'Online AI',
       'on-device-browser': 'Phone Offline AI',
+      'offline-local-guide': 'Offline Local Guide (Saved Data)',
       'offline-unavailable': 'Could not reply',
     },
     starterQuestions: [
@@ -666,7 +670,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     aiOfflineSectionTitle: 'AI & Offline Mode',
     aiOfflineSectionDesc: 'See how AI answers work with and without internet.',
     aiOnlineExplain: 'When internet is on, the app asks online AI using real space reports.',
-    aiLocalExplain: 'When internet is off, it only answers if your phone/browser has a built-in AI model; otherwise it never makes up fake answers.',
+    aiLocalExplain: 'When internet is off, built-in Gemini Nano runs only on supported browsers; on mobile without Gemini Nano, the built-in Offline Local Guide answers basic questions from your saved report without faking an AI model.',
     card2CheckBtn: 'Check Phone AI',
     card2SimulateBtn: 'Test Offline Mode',
     card2SimulateActive: 'Offline Mode is On',
@@ -1182,6 +1186,8 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
           : 'ابھی کوئی پچھلی معلومات بھی محفوظ نہیں ہے۔'
       }`;
     },
+    offlineGuideActiveNote:
+      'انٹرنیٹ بند ہے — آف لائن مقامی رہنما چالو ہے اور آپ محفوظ معلومات کی مدد سے بنیادی اردو سوالات ابھی بھی پوچھ سکتے ہیں۔',
     networkAiUnavailableMsg:
       'ابھی اے آئی سے رابطہ نہیں ہو رہا۔ انٹرنیٹ چیک کرکے دوبارہ کوشش کریں۔',
     timeoutAiUnavailableMsg:
@@ -1193,6 +1199,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-cloud': 'آن لائن اے آئی',
       'server-gemini': 'آن لائن اے آئی',
       'on-device-browser': 'موبائل کی اپنی اے آئی',
+      'offline-local-guide': 'آف لائن مقامی رہنما (محفوظ معلومات)',
       'offline-unavailable': 'جواب نہیں مل سکا',
     },
     starterQuestions: [
@@ -1232,7 +1239,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     aiOfflineSectionTitle: 'اے آئی اور انٹرنیٹ',
     aiOfflineSectionDesc: 'سمجھیں کہ انٹرنیٹ ہونے اور نہ ہونے پر اے آئی کیسے کام کرتی ہے۔',
     aiOnlineExplain: 'جب انٹرنیٹ چالو ہو تو اے آئی تازہ سرکاری معلومات دیکھ کر جواب دیتی ہے۔',
-    aiLocalExplain: 'انٹرنیٹ بند ہو تو صرف تب جواب ملے گا اگر اس موبائل یا براؤزر میں اپنی اے آئی موجود ہو، ورنہ کوئی جھوٹا جواب نہیں بنایا جائے گا۔',
+    aiLocalExplain: 'انٹرنیٹ بند ہونے پر بھی ایپ کا آف لائن مقامی رہنما محفوظ معلومات کی مدد سے بنیادی اردو سوالات کا جواب دیتا ہے۔ اگر موبائل میں جیمنائی نینو موجود نہ ہو تو صاف بتا دیا جاتا ہے اور کوئی جھوٹا دعویٰ نہیں کیا جاتا۔',
     card2CheckBtn: 'موبائل کی اے آئی جانچیں',
     card2SimulateBtn: 'بغیر انٹرنیٹ حالت آزمائیں',
     card2SimulateActive: 'بغیر انٹرنیٹ حالت چالو ہے',
@@ -1747,6 +1754,8 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
           : 'अभी कोई पिछली जानकारी भी सहेजी नहीं गई है।'
       }`;
     },
+    offlineGuideActiveNote:
+      'इंटरनेट बंद है — ऑफ़लाइन स्थानीय गाइड चालू है, आप सहेजी जानकारी से बुनियादी सवाल अभी भी पूछ सकते हैं।',
     networkAiUnavailableMsg:
       'अभी एआई से संपर्क नहीं हो रहा है। इंटरनेट जाँचकर फिर से कोशिश करें।',
     timeoutAiUnavailableMsg:
@@ -1758,6 +1767,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-cloud': 'ऑनलाइन एआई',
       'server-gemini': 'ऑनलाइन एआई',
       'on-device-browser': 'फ़ोन की अपनी एआई',
+      'offline-local-guide': 'ऑफ़लाइन स्थानीय गाइड (सहेजी जानकारी)',
       'offline-unavailable': 'जवाब नहीं मिल सका',
     },
     starterQuestions: [
@@ -1797,7 +1807,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     aiOfflineSectionTitle: 'एआई और इंटरनेट',
     aiOfflineSectionDesc: 'समझें कि इंटरनेट होने और न होने पर एआई कैसे काम करती है।',
     aiOnlineExplain: 'जब इंटरनेट चालू हो तो एआई ताज़ा सरकारी जानकारी देखकर जवाब देती है।',
-    aiLocalExplain: 'इंटरनेट बंद हो तो सिर्फ़ तब जवाब मिलेगा जब इस फ़ोन या ब्राउज़र में अपनी एआई हो, वरना कोई झूठा जवाब नहीं बनाया जाएगा।',
+    aiLocalExplain: 'इंटरनेट बंद होने पर सहेजी गई जानकारी से बना ऑफ़लाइन स्थानीय गाइड बुनियादी सवालों का जवाब देता है। यदि फ़ोन में अपनी एआई उपलब्ध नहीं है तो साफ़ बताया जाता है।',
     card2CheckBtn: 'फ़ोन की एआई जाँचें',
     card2SimulateBtn: 'बिना इंटरनेट स्थिति आज़माएँ',
     card2SimulateActive: 'बिना इंटरनेट स्थिति चालू है',
@@ -2310,6 +2320,8 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
           : 'ఇంకా పాత సమాచారం కూడా సేవ్ కాలేదు.'
       }`;
     },
+    offlineGuideActiveNote:
+      'ఇంటర్నెట్ ఆఫ్‌లో ఉంది — ఆఫ్‌లైన్ స్థానిక గైడ్ సిద్ధంగా ఉంది, సేవ్ చేసిన వివరాలతో ప్రాథమిక ప్రశ్నలు అడగవచ్చు.',
     networkAiUnavailableMsg:
       'ఇప్పుడు ఏఐతో కలవడం లేదు. ఇంటర్నెట్ చూసి మళ్ళీ ప్రయత్నించండి.',
     timeoutAiUnavailableMsg:
@@ -2321,6 +2333,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-cloud': 'ఆన్‌లైన్ ఏఐ',
       'server-gemini': 'ఆన్‌లైన్ ఏఐ',
       'on-device-browser': 'ఫోన్ సొంత ఏఐ',
+      'offline-local-guide': 'ఆఫ్‌లైన్ స్థానిక గైడ్ (సేవ్ చేసిన వివరాలు)',
       'offline-unavailable': 'సమాధానం రాలేదు',
     },
     starterQuestions: [
@@ -2360,7 +2373,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     aiOfflineSectionTitle: 'ఏఐ మరియు ఇంటర్నెట్',
     aiOfflineSectionDesc: 'ఇంటర్నెట్ ఉన్నప్పుడు మరియు లేనప్పుడు ఏఐ ఎలా పనిచేస్తుందో చూడండి.',
     aiOnlineExplain: 'ఇంటర్నెట్ ఆన్‌లో ఉన్నప్పుడు ఏఐ తాజా ప్రభుత్వ వార్తలు చూసి సమాధానం ఇస్తుంది.',
-    aiLocalExplain: 'ఇంటర్నెట్ లేకపోతే ఈ ఫోన్ లేదా బ్రౌజర్‌లో సొంత ఏఐ ఉంటేనే సమాధానం వస్తుంది; లేకుంటే అబద్ధపు సమాధానం ఇవ్వదు.',
+    aiLocalExplain: 'ఇంటర్నెట్ లేకపోయినా సేవ్ చేసిన వివరాలతో ఆఫ్‌లైన్ స్థానిక గైడ్ ప్రాథమిక ప్రశ్నలకు సమాధానం ఇస్తుంది; ఫోన్ ఏఐ లేకపోతే అబద్ధపు సమాధానం చెప్పదు.',
     card2CheckBtn: 'ఫోన్ ఏఐ చూడండి',
     card2SimulateBtn: 'ఇంటర్నెట్ లేని స్థితి చూడండి',
     card2SimulateActive: 'ఇంటర్నెట్ లేని స్థితి ఆన్‌లో ఉంది',
@@ -2873,6 +2886,8 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
           : 'ಇನ್ನೂ ಹಳೆಯ ಮಾಹಿತಿಯೂ ಉಳಿದಿಲ್ಲ.'
       }`;
     },
+    offlineGuideActiveNote:
+      'ಇಂಟರ್ನೆಟ್ ಆಫ್ ಆಗಿದೆ — ಆಫ್‌ಲೈನ್ ಸ್ಥಳೀಯ ಮಾರ್ಗದರ್ಶಿ ಸಕ್ರಿಯವಾಗಿದೆ, ಉಳಿಸಿದ ಮಾಹಿತಿಯಿಂದ ಮೂಲ ಪ್ರಶ್ನೆಗಳನ್ನು ಕೇಳಬಹುದು.',
     networkAiUnavailableMsg:
       'ಈಗ ಎಐ ಜೊತೆ ಸಂಪರ್ಕ ಆಗುತ್ತಿಲ್ಲ. ಇಂಟರ್ನೆಟ್ ನೋಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
     timeoutAiUnavailableMsg:
@@ -2884,6 +2899,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
       'firebase-ai-cloud': 'ಆನ್‌ಲೈನ್ ಎಐ',
       'server-gemini': 'ಆನ್‌ಲೈನ್ ಎಐ',
       'on-device-browser': 'ಫೋನ್ ಸ್ವಂತ ಎಐ',
+      'offline-local-guide': 'ಆಫ್‌ಲೈನ್ ಸ್ಥಳೀಯ ಮಾರ್ಗದರ್ಶಿ (ಉಳಿಸಿದ ಮಾಹಿತಿ)',
       'offline-unavailable': 'ಉತ್ತರ ಸಿಗಲಿಲ್ಲ',
     },
     starterQuestions: [
@@ -2923,7 +2939,7 @@ export const LOCALIZATION: Record<LanguageCode, LocalizationBundle> = {
     aiOfflineSectionTitle: 'ಎಐ ಮತ್ತು ಇಂಟರ್ನೆಟ್',
     aiOfflineSectionDesc: 'ಇಂಟರ್ನೆಟ್ ಇದ್ದಾಗ ಮತ್ತು ಇಲ್ಲದಿದ್ದಾಗ ಎಐ ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ನೋಡಿ.',
     aiOnlineExplain: 'ಇಂಟರ್ನೆಟ್ ಆನ್ ಇದ್ದಾಗ ಎಐ ತಾಜಾ ಸರ್ಕಾರಿ ಸುದ್ದಿ ನೋಡಿ ಉತ್ತರ ಕೊಡುತ್ತದೆ.',
-    aiLocalExplain: 'ಇಂಟರ್ನೆಟ್ ಇಲ್ಲದಿದ್ದರೆ ಈ ಫೋನ್ ಅಥವಾ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಸ್ವಂತ ಎಐ ಇದ್ದರೆ ಮಾತ್ರ ಉತ್ತರ ಬರುತ್ತದೆ; ಇಲ್ಲದಿದ್ದರೆ ಸುಳ್ಳು ಉತ್ತರ ಕೊಡುವುದಿಲ್ಲ.',
+    aiLocalExplain: 'ಇಂಟರ್ನೆಟ್ ಇಲ್ಲದಿದ್ದರೂ ಉಳಿಸಿದ ಮಾಹಿತಿಯಿಂದ ಆಫ್‌ಲೈನ್ ಸ್ಥಳೀಯ ಮಾರ್ಗದರ್ಶಿ ಮೂಲ ಪ್ರಶ್ನೆಗಳಿಗೆ ಉತ್ತರಿಸುತ್ತದೆ; ಫೋನ್ ಎಐ ಇಲ್ಲದಿದ್ದರೆ ಸುಳ್ಳು ಹೇಳುವುದಿಲ್ಲ.',
     card2CheckBtn: 'ಫೋನ್ ಎಐ ನೋಡಿ',
     card2SimulateBtn: 'ಇಂಟರ್ನೆಟ್ ಇಲ್ಲದ ಸ್ಥಿತಿ ನೋಡಿ',
     card2SimulateActive: 'ಇಂಟರ್ನೆಟ್ ಇಲ್ಲದ ಸ್ಥಿತಿ ಆನ್ ಇದೆ',

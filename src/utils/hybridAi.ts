@@ -7,6 +7,7 @@ import {
   LocalModelSupport,
   SolarWeatherState,
 } from '../types/sentinel';
+import { generateOfflineSpaceWeatherReply } from './offlineAiEngine';
 
 let firebaseAiCloudBlockedUntil = 0;
 
@@ -176,6 +177,22 @@ export async function askHybridSentinel(params: {
       }
     }
 
+    // Practical mobile fallback: built-in local Space Weather Guide (no false Gemini Nano claim)
+    const localGuideReply = generateOfflineSpaceWeatherReply({
+      question,
+      language,
+      solar,
+      history,
+    });
+    if (localGuideReply.trim()) {
+      return {
+        text: localGuideReply.trim(),
+        provider: 'offline-local-guide',
+        errorKind: 'none',
+        canRetry: false,
+      };
+    }
+
     return {
       text: offlineUnavailableMsg,
       provider: 'offline-unavailable',
@@ -303,7 +320,26 @@ export async function askHybridSentinel(params: {
     }
   }
 
-  // 5. Honest failure with retry support (never fabricate a fake AI answer)
+  // 5. If browser went offline mid-request, serve honest local guide answer instead of dead failure
+  const wentOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+  if (wentOffline) {
+    const localGuideReply = generateOfflineSpaceWeatherReply({
+      question,
+      language,
+      solar,
+      history,
+    });
+    if (localGuideReply.trim()) {
+      return {
+        text: localGuideReply.trim(),
+        provider: 'offline-local-guide',
+        errorKind: 'none',
+        canRetry: false,
+      };
+    }
+  }
+
+  // 6. Honest failure with retry support (never fabricate a fake AI answer)
   const resolvedErrorText =
     lastErrorKind === 'rate-limit' && rateLimitUnavailableMsg
       ? rateLimitUnavailableMsg

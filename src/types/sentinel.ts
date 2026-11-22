@@ -13,6 +13,7 @@ export type AiProviderKind =
   | 'firebase-ai-cloud'
   | 'server-gemini'
   | 'on-device-browser'
+  | 'offline-local-guide'
   | 'offline-unavailable';
 
 export type LocalModelSupport = 'available' | 'downloadable' | 'unsupported';

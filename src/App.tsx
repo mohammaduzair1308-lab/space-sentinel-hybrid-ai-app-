@@ -1200,6 +1200,7 @@ export default function App() {
             <SpaceHelperView
               t={t}
               language={language}
+              offlineMode={offlineMode}
               conversations={conversations}
               activeConversationId={activeConversation?.id ?? null}
               activeMessages={activeMessages}

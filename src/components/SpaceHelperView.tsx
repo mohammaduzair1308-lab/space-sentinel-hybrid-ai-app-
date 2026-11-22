@@ -27,6 +27,7 @@ import {
 interface SpaceHelperViewProps {
   t: LocalizationBundle;
   language: LanguageCode;
+  offlineMode?: boolean;
   conversations: ChatConversation[];
   activeConversationId: string | null;
   activeMessages: HelperMessage[];
@@ -59,6 +60,7 @@ interface SpeechRecognitionInstance {
 export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
   t,
   language,
+  offlineMode = false,
   conversations,
   activeConversationId,
   activeMessages,
@@ -423,6 +425,13 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Reassuring Offline Local Guide Banner */}
+        {offlineMode && (
+          <div className="rounded-xl border border-cyan-500/35 bg-cyan-50/70 dark:bg-cyan-500/10 px-4 py-2.5 text-xs font-medium text-cyan-900 dark:text-cyan-200">
+            {t.offlineGuideActiveNote}
+          </div>
+        )}
 
         {/* Starter Questions when in New Chat */}
         {!activeConversation && (

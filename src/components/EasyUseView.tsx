@@ -786,6 +786,12 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
             {t.easyAiSubheading}
           </p>
 
+          {offlineMode && (
+            <div className="rounded-xl border border-cyan-500/35 bg-cyan-50/70 dark:bg-cyan-500/10 px-4 py-2.5 text-sm font-medium text-cyan-900 dark:text-cyan-200">
+              {t.offlineGuideActiveNote}
+            </div>
+          )}
+
           {/* Large Voice Ask Mic Button (No Typing Required) */}
           <button
             type="button"
