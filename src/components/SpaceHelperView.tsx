@@ -49,6 +49,9 @@ interface SpaceHelperViewProps {
     code: 'ready' | 'unsupported' | 'incomplete' | 'error';
     detail?: string;
   } | null;
+  isMobileDrawerOpen?: boolean;
+  onOpenMobileDrawer?: () => void;
+  onCloseMobileDrawer?: () => void;
   onPrepareDeviceModel?: () => void;
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
@@ -87,6 +90,9 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
   isPreparingDeviceModel = false,
   deviceModelProgress = null,
   deviceModelStatus = null,
+  isMobileDrawerOpen: controlledDrawerOpen,
+  onOpenMobileDrawer,
+  onCloseMobileDrawer,
   onPrepareDeviceModel,
   onSelectConversation,
   onNewChat,
@@ -99,7 +105,17 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [internalDrawerOpen, setInternalDrawerOpen] = useState(false);
+  const mobileDrawerOpen =
+    controlledDrawerOpen !== undefined ? controlledDrawerOpen : internalDrawerOpen;
+  const openDrawer = () => {
+    if (onOpenMobileDrawer) onOpenMobileDrawer();
+    else setInternalDrawerOpen(true);
+  };
+  const closeDrawer = () => {
+    if (onCloseMobileDrawer) onCloseMobileDrawer();
+    else setInternalDrawerOpen(false);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -107,6 +123,22 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!mobileDrawerOpen) {
+      setEditingId(null);
+    }
+  }, [mobileDrawerOpen]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // Ignore
+      }
+    };
+  }, []);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
@@ -219,7 +251,7 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
         type="button"
         onClick={() => {
           onNewChat();
-          setMobileDrawerOpen(false);
+          if (mobileDrawerOpen) closeDrawer();
         }}
         className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-xs font-bold text-slate-950 transition-all active:scale-[0.98] hover:bg-cyan-400 cursor-pointer"
       >
@@ -310,7 +342,7 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
                       type="button"
                       onClick={() => {
                         onSelectConversation(conv.id);
-                        setMobileDrawerOpen(false);
+                        if (mobileDrawerOpen) closeDrawer();
                       }}
                       className="min-w-0 flex-1 text-start cursor-pointer"
                     >
@@ -377,7 +409,7 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs"
-            onClick={() => setMobileDrawerOpen(false)}
+            onClick={closeDrawer}
           />
           <div className="relative z-10 flex h-full w-80 max-w-[86vw] flex-col border-e border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0D1528] p-4 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
@@ -386,7 +418,7 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
               </span>
               <button
                 type="button"
-                onClick={() => setMobileDrawerOpen(false)}
+                onClick={closeDrawer}
                 aria-label={t.chatCloseListBtn}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
               >
@@ -427,7 +459,7 @@ export const SpaceHelperView: React.FC<SpaceHelperViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setMobileDrawerOpen(true)}
+              onClick={openDrawer}
               className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 lg:hidden cursor-pointer"
             >
               <List className="h-4 w-4" />

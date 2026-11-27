@@ -52,6 +52,9 @@ interface EasyUseViewProps {
     code: 'ready' | 'unsupported' | 'incomplete' | 'error';
     detail?: string;
   } | null;
+  selectedSection?: EasyMenuSection | null;
+  onSelectSection?: (section: EasyMenuSection | null) => void;
+  onBackToMenu?: () => void;
   onPrepareDeviceModel?: () => void;
   onRefreshLive: () => void;
   onSpeakText: (text: string, options?: { kind?: 'easy' | 'reply'; msgId?: string }) => void;
@@ -125,6 +128,9 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
   isPreparingDeviceModel = false,
   deviceModelProgress = null,
   deviceModelStatus = null,
+  selectedSection: controlledSection,
+  onSelectSection: onControlledSelectSection,
+  onBackToMenu: onControlledBackToMenu,
   onPrepareDeviceModel,
   onRefreshLive,
   onSpeakText,
@@ -132,7 +138,8 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
   onSendMessage,
   onRetryMessage,
 }) => {
-  const [selectedSection, setSelectedSection] = useState<EasyMenuSection | null>(null);
+  const [internalSection, setInternalSection] = useState<EasyMenuSection | null>(null);
+  const selectedSection = controlledSection !== undefined ? controlledSection : internalSection;
   const [aiInput, setAiInput] = useState('');
   const [voiceCmdStatus, setVoiceCmdStatus] = useState<string | null>(null);
   const [isListeningCmd, setIsListeningCmd] = useState(false);
@@ -164,6 +171,41 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
       setIsListeningAi(false);
     }
   }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setAiMicError(null);
+    if (cmdRecRef.current) {
+      try {
+        cmdRecRef.current.stop();
+      } catch {
+        // Ignore
+      }
+      setIsListeningCmd(false);
+    }
+    if (aiRecRef.current) {
+      try {
+        aiRecRef.current.stop();
+      } catch {
+        // Ignore
+      }
+      setIsListeningAi(false);
+    }
+  }, [selectedSection]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        cmdRecRef.current?.stop();
+      } catch {
+        // Ignore
+      }
+      try {
+        aiRecRef.current?.stop();
+      } catch {
+        // Ignore
+      }
+    };
+  }, []);
 
   const getSectionIcon = (sec: EasyMenuSection) => {
     switch (sec) {
@@ -283,7 +325,11 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
   const handleSelectSection = (sec: EasyMenuSection) => {
     onStopVoice();
     setVoiceCmdStatus(null);
-    setSelectedSection(sec);
+    if (onControlledSelectSection) {
+      onControlledSelectSection(sec);
+    } else {
+      setInternalSection(sec);
+    }
     if (sec === 'all-voice') {
       const content = buildSectionText('all-voice');
       onSpeakText(content.speech, { kind: 'easy', msgId: 'easy-all' });
@@ -292,7 +338,13 @@ export const EasyUseView: React.FC<EasyUseViewProps> = ({
 
   const handleBackToMenu = () => {
     onStopVoice();
-    setSelectedSection(null);
+    if (onControlledBackToMenu) {
+      onControlledBackToMenu();
+    } else if (onControlledSelectSection) {
+      onControlledSelectSection(null);
+    } else {
+      setInternalSection(null);
+    }
   };
 
   const handleVoiceCommandMenu = () => {

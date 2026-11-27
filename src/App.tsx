@@ -32,6 +32,7 @@ import { appCheckStatus, auth, testFirestoreServerConnection } from './firebase'
 import {
   AppUser,
   ChatConversation,
+  EasyMenuSection,
   FavoriteSpaceItem,
   HelperMessage,
   LanguageCode,
@@ -63,6 +64,14 @@ import {
   probeOnDeviceLocalModel,
 } from './utils/hybridAi';
 import {
+  AppNavState,
+  AppPanelId,
+  buildNavUrl,
+  isPanelValidForRoute,
+  normalizeHistoryState,
+  readInitialNavState,
+} from './utils/navigationHistory';
+import {
   fetchLiveSolarWeather,
   generateScenarioState,
   loadCachedSolarState,
@@ -83,7 +92,13 @@ function makeId(prefix: string): string {
 }
 
 export default function App() {
-  const [route, setRoute] = useState<PageRoute>('welcome');
+  const [navState, setNavState] = useState<AppNavState>(() => readInitialNavState());
+  const route = navState.route;
+  const easySection = navState.easySection;
+  const activePanel = navState.panel;
+  const navStateRef = useRef<AppNavState>(navState);
+  const historyMapRef = useRef<Map<number, AppNavState>>(new Map([[navState.depth, navState]]));
+  const closingPanelAtDepthRef = useRef<number | null>(null);
   const [language, setLanguage] = useState<LanguageCode>('ur');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [largeText, setLargeText] = useState<boolean>(false);
@@ -830,11 +845,185 @@ export default function App() {
     }
   };
 
-  const navigateTo = (target: PageRoute) => {
+  useEffect(() => {
+    navStateRef.current = navState;
+  }, [navState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const initial = navStateRef.current;
+    historyMapRef.current.set(initial.depth, initial);
+    try {
+      window.history.replaceState(initial, '', buildNavUrl(initial));
+    } catch {
+      // Ignore restricted history API contexts
+    }
+
+    const onPopState = (event: PopStateEvent) => {
+      const next = normalizeHistoryState(event.state, window.location.hash);
+      closingPanelAtDepthRef.current = null;
+      navStateRef.current = next;
+      historyMapRef.current.set(next.depth, next);
+      setNavState(next);
+      handleStopAllVoice();
+      setVoiceUnavailableReason(null);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [handleStopAllVoice]);
+
+  const pruneForwardHistory = (fromDepth: number) => {
+    for (const key of historyMapRef.current.keys()) {
+      if (key >= fromDepth) {
+        historyMapRef.current.delete(key);
+      }
+    }
+  };
+
+  const replaceCurrentNavState = (next: AppNavState) => {
+    historyMapRef.current.set(next.depth, next);
+    navStateRef.current = next;
+    setNavState(next);
+    if (typeof window !== 'undefined') {
+      try {
+        window.history.replaceState(next, '', buildNavUrl(next));
+      } catch {
+        // Ignore restricted history API contexts
+      }
+    }
+  };
+
+  const pushNextNavState = (next: AppNavState) => {
+    pruneForwardHistory(next.depth);
+    historyMapRef.current.set(next.depth, next);
+    navStateRef.current = next;
+    setNavState(next);
+    if (typeof window !== 'undefined') {
+      try {
+        window.history.pushState(next, '', buildNavUrl(next));
+      } catch {
+        // Ignore restricted history API contexts
+      }
+    }
+  };
+
+  const closePanel = (expectedPanel?: AppPanelId) => {
+    const curr = navStateRef.current;
+    if (curr.panel === null) return;
+    if (expectedPanel && curr.panel !== expectedPanel) return;
+
+    const prev = curr.depth > 0 ? historyMapRef.current.get(curr.depth - 1) : undefined;
+    if (
+      typeof window !== 'undefined' &&
+      prev &&
+      prev.route === curr.route &&
+      prev.easySection === curr.easySection &&
+      prev.panel === null
+    ) {
+      if (closingPanelAtDepthRef.current === curr.depth) return;
+      closingPanelAtDepthRef.current = curr.depth;
+      window.history.back();
+      return;
+    }
+
+    replaceCurrentNavState({ ...curr, panel: null });
+  };
+
+  const openPanel = (panelId: AppPanelId) => {
+    const curr = navStateRef.current;
+    if (!isPanelValidForRoute(panelId, curr.route)) return;
+    if (curr.panel === panelId) return;
+
+    if (curr.panel !== null) {
+      replaceCurrentNavState({ ...curr, panel: panelId });
+      return;
+    }
+
+    pushNextNavState({
+      __sentinelNav: true,
+      depth: curr.depth + 1,
+      route: curr.route,
+      easySection: curr.easySection,
+      panel: panelId,
+    });
+  };
+
+  const togglePanel = (panelId: AppPanelId) => {
+    if (navStateRef.current.panel === panelId) {
+      closePanel(panelId);
+    } else {
+      openPanel(panelId);
+    }
+  };
+
+  const navigateTo = (target: PageRoute, targetEasySection: EasyMenuSection | null = null) => {
     handleStopAllVoice();
     setVoiceUnavailableReason(null);
-    setRoute(target);
+
+    const normalizedEasy = target === 'easy' ? targetEasySection : null;
+    const curr = navStateRef.current;
+
+    if (curr.route === target && curr.easySection === normalizedEasy) {
+      if (curr.panel !== null) {
+        closePanel();
+      }
+      return;
+    }
+
+    if (curr.panel !== null) {
+      const cleanedCurr: AppNavState = { ...curr, panel: null };
+      historyMapRef.current.set(cleanedCurr.depth, cleanedCurr);
+      if (typeof window !== 'undefined') {
+        try {
+          window.history.replaceState(cleanedCurr, '', buildNavUrl(cleanedCurr));
+        } catch {
+          // Ignore restricted history API contexts
+        }
+      }
+    }
+
+    pushNextNavState({
+      __sentinelNav: true,
+      depth: curr.depth + 1,
+      route: target,
+      easySection: normalizedEasy,
+      panel: null,
+    });
   };
+
+  const backFromEasySection = () => {
+    handleStopAllVoice();
+    setVoiceUnavailableReason(null);
+
+    const curr = navStateRef.current;
+    const prev = curr.depth > 0 ? historyMapRef.current.get(curr.depth - 1) : undefined;
+    if (
+      typeof window !== 'undefined' &&
+      prev &&
+      prev.route === 'easy' &&
+      prev.easySection === null &&
+      prev.panel === null
+    ) {
+      if (closingPanelAtDepthRef.current === curr.depth) return;
+      closingPanelAtDepthRef.current = curr.depth;
+      window.history.back();
+      return;
+    }
+
+    navigateTo('easy', null);
+  };
+
+  const homeExpandedCard =
+    activePanel === 'home-flare'
+      ? 'flare'
+      : activePanel === 'home-kp'
+        ? 'kp'
+        : activePanel === 'home-wind'
+          ? 'wind'
+          : activePanel === 'home-gps'
+            ? 'gps'
+            : null;
 
   const voiceUnavailableMessage =
     voiceUnavailableReason === 'offline'
@@ -978,6 +1167,9 @@ export default function App() {
             isPreparingDeviceModel={isPreparingDeviceModel}
             deviceModelProgress={deviceModelProgress}
             deviceModelStatus={deviceModelStatus}
+            selectedSection={easySection}
+            onSelectSection={(sec) => navigateTo('easy', sec)}
+            onBackToMenu={backFromEasySection}
             onPrepareDeviceModel={handlePrepareDeviceModel}
             onRefreshLive={handleRefreshLive}
             onSpeakText={(txt, opts) =>
@@ -1227,6 +1419,8 @@ export default function App() {
               offlineMode={offlineMode}
               fetchError={fetchError}
               connectionRestored={connectionRestored}
+              expandedCard={homeExpandedCard}
+              onToggleCard={(id) => togglePanel(`home-${id}`)}
               onDismissRestored={() => setConnectionRestored(false)}
               onRefreshLive={handleRefreshLive}
               onReturnLive={handleRefreshLive}
@@ -1269,6 +1463,9 @@ export default function App() {
               isPreparingDeviceModel={isPreparingDeviceModel}
               deviceModelProgress={deviceModelProgress}
               deviceModelStatus={deviceModelStatus}
+              isMobileDrawerOpen={activePanel === 'helper-drawer'}
+              onOpenMobileDrawer={() => openPanel('helper-drawer')}
+              onCloseMobileDrawer={() => closePanel('helper-drawer')}
               onPrepareDeviceModel={handlePrepareDeviceModel}
               onSelectConversation={(id) => {
                 handleStopAllVoice();
@@ -1299,6 +1496,8 @@ export default function App() {
               isVoiceLoading={isVoiceLoading && speakingKind === 'alert'}
               voiceUnavailableMessage={voiceUnavailableMessage}
               favorites={favorites}
+              trainingOpen={activePanel === 'alerts-training'}
+              onToggleTraining={() => togglePanel('alerts-training')}
               onRefreshLive={handleRefreshLive}
               onToggleEmergencyAlert={handleToggleEmergencyAlert}
               onSaveAlertFavorite={handleSaveAlertFavorite}
@@ -1329,6 +1528,8 @@ export default function App() {
               deviceModelStatus={deviceModelStatus}
               appCheckActive={appCheckStatus.active}
               saveConsent={saveConsent}
+              techOpen={activePanel === 'settings-tech'}
+              onToggleTech={() => togglePanel('settings-tech')}
               onSignInGoogle={handleSignInGoogle}
               onSignOut={handleSignOut}
               onSelectLanguage={handleSelectLanguage}

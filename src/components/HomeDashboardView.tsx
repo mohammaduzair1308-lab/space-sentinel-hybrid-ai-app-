@@ -32,6 +32,8 @@ interface HomeDashboardViewProps {
   offlineMode: boolean;
   fetchError: boolean;
   connectionRestored: boolean;
+  expandedCard?: 'flare' | 'kp' | 'wind' | 'gps' | null;
+  onToggleCard?: (id: 'flare' | 'kp' | 'wind' | 'gps') => void;
   onDismissRestored: () => void;
   onRefreshLive: () => void;
   onReturnLive: () => void;
@@ -48,6 +50,8 @@ export const HomeDashboardView: React.FC<HomeDashboardViewProps> = ({
   offlineMode,
   fetchError,
   connectionRestored,
+  expandedCard: controlledExpandedCard,
+  onToggleCard,
   onDismissRestored,
   onRefreshLive,
   onReturnLive,
@@ -55,7 +59,9 @@ export const HomeDashboardView: React.FC<HomeDashboardViewProps> = ({
   onOpenWeather,
   onOpenAlerts,
 }) => {
-  const [expandedCard, setExpandedCard] = useState<'flare' | 'kp' | 'wind' | 'gps' | null>(null);
+  const [internalExpandedCard, setInternalExpandedCard] = useState<'flare' | 'kp' | 'wind' | 'gps' | null>(null);
+  const expandedCard =
+    controlledExpandedCard !== undefined ? controlledExpandedCard : internalExpandedCard;
   const [, setAgeTick] = useState(0);
 
   const showWarningBanner =
@@ -68,7 +74,11 @@ export const HomeDashboardView: React.FC<HomeDashboardViewProps> = ({
   }, [showWarningBanner, solar]);
 
   const toggleCard = (id: 'flare' | 'kp' | 'wind' | 'gps') => {
-    setExpandedCard((prev) => (prev === id ? null : id));
+    if (onToggleCard) {
+      onToggleCard(id);
+    } else {
+      setInternalExpandedCard((prev) => (prev === id ? null : id));
+    }
   };
 
   const severity = solar?.severity ?? 'nominal';

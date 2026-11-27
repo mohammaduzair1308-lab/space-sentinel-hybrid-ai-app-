@@ -40,6 +40,8 @@ interface AlertsViewProps {
   isVoiceLoading: boolean;
   voiceUnavailableMessage: string | null;
   favorites: FavoriteSpaceItem[];
+  trainingOpen?: boolean;
+  onToggleTraining?: () => void;
   onRefreshLive: () => void;
   onToggleEmergencyAlert: () => void;
   onSaveAlertFavorite: (alert: SpaceAlertItem) => void;
@@ -59,6 +61,8 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   isVoiceLoading,
   voiceUnavailableMessage,
   favorites,
+  trainingOpen: controlledTrainingOpen,
+  onToggleTraining,
   onRefreshLive,
   onToggleEmergencyAlert,
   onSaveAlertFavorite,
@@ -66,7 +70,9 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   onSelectSample,
   onReturnLive,
 }) => {
-  const [trainingOpen, setTrainingOpen] = useState(false);
+  const [internalTrainingOpen, setInternalTrainingOpen] = useState(false);
+  const trainingOpen =
+    controlledTrainingOpen !== undefined ? controlledTrainingOpen : internalTrainingOpen;
   const [, setAgeTick] = useState(0);
 
   const showWarning =
@@ -599,7 +605,10 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => setTrainingOpen((o) => !o)}
+            onClick={() => {
+              if (onToggleTraining) onToggleTraining();
+              else setInternalTrainingOpen((o) => !o);
+            }}
             className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-cyan-500 cursor-pointer"
           >
             <span>{trainingOpen ? t.alertsTrainingHideBtn : t.alertsTrainingShowBtn}</span>

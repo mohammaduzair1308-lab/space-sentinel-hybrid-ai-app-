@@ -37,6 +37,8 @@ interface SettingsViewProps {
   } | null;
   appCheckActive: boolean;
   saveConsent: boolean;
+  techOpen?: boolean;
+  onToggleTech?: () => void;
   onSignInGoogle: () => void;
   onSignOut: () => void;
   onSelectLanguage: (lang: LanguageCode) => void;
@@ -70,6 +72,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   deviceModelStatus,
   appCheckActive,
   saveConsent,
+  techOpen: controlledTechOpen,
+  onToggleTech,
   onSignInGoogle,
   onSignOut,
   onSelectLanguage,
@@ -84,7 +88,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleSaveConsent,
   onClearAllSaved,
 }) => {
-  const [techOpen, setTechOpen] = useState(false);
+  const [internalTechOpen, setInternalTechOpen] = useState(false);
+  const techOpen = controlledTechOpen !== undefined ? controlledTechOpen : internalTechOpen;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -404,7 +409,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] p-5">
         <button
           type="button"
-          onClick={() => setTechOpen((o) => !o)}
+          onClick={() => {
+            if (onToggleTech) onToggleTech();
+            else setInternalTechOpen((o) => !o);
+          }}
           className="flex w-full items-center justify-between gap-2 text-start text-sm font-bold text-slate-800 dark:text-slate-200 cursor-pointer"
         >
           <span className="inline-flex items-center gap-2">
