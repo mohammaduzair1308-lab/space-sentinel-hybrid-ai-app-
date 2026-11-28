@@ -339,43 +339,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
-            {deviceModelStatus && (
-              <p
-                className={`mt-2 rounded-xl border px-3 py-2 text-xs leading-relaxed ${
-                  deviceModelStatus.code === 'ready'
-                    ? 'border-emerald-500/35 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
-                    : deviceModelStatus.code === 'error'
-                      ? 'border-rose-500/35 bg-rose-50/70 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200'
-                      : 'border-amber-500/35 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200'
-                }`}
-              >
-                {deviceModelStatus.code === 'ready'
-                  ? t.deviceModelReadyNotice
-                  : deviceModelStatus.code === 'unsupported'
-                    ? t.deviceModelUnsupportedNotice
-                    : deviceModelStatus.code === 'incomplete'
-                      ? t.deviceModelIncompleteNotice
-                      : t.deviceModelErrorNotice(deviceModelStatus.detail)}
-              </p>
-            )}
+            {(() => {
+              const effectiveStatus =
+                deviceModelStatus ??
+                (localModelSupport === 'unsupported' ? { code: 'unsupported' as const } : null);
+              if (!effectiveStatus) return null;
+              return (
+                <p
+                  className={`mt-2 rounded-xl border px-3 py-2 text-xs leading-relaxed ${
+                    effectiveStatus.code === 'ready'
+                      ? 'border-emerald-500/35 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                      : effectiveStatus.code === 'error'
+                        ? 'border-rose-500/35 bg-rose-50/70 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200'
+                        : 'border-amber-500/35 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200'
+                  }`}
+                >
+                  {effectiveStatus.code === 'ready'
+                    ? t.deviceModelReadyNotice
+                    : effectiveStatus.code === 'unsupported'
+                      ? t.deviceModelUnsupportedNotice
+                      : effectiveStatus.code === 'incomplete'
+                        ? t.deviceModelIncompleteNotice
+                        : t.deviceModelErrorNotice(effectiveStatus.detail)}
+                </p>
+              );
+            })()}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={isPreparingDeviceModel}
-              onClick={onPrepareDeviceModel}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-cyan-500/60 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-cyan-900 dark:text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-60 cursor-pointer"
-            >
-              {isPreparingDeviceModel ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Cpu className="h-3.5 w-3.5" />
-              )}
-              <span>
-                {isPreparingDeviceModel ? t.preparingDeviceModelBtn : t.prepareDeviceModelBtn}
-              </span>
-            </button>
+            {(localModelSupport !== 'unsupported' || isPreparingDeviceModel) && (
+              <button
+                type="button"
+                disabled={isPreparingDeviceModel}
+                onClick={onPrepareDeviceModel}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-cyan-500/60 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-cyan-900 dark:text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-60 cursor-pointer"
+              >
+                {isPreparingDeviceModel ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Cpu className="h-3.5 w-3.5" />
+                )}
+                <span>
+                  {isPreparingDeviceModel ? t.preparingDeviceModelBtn : t.prepareDeviceModelBtn}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onCheckLocalModel}

@@ -393,9 +393,114 @@ function classifyGeminiError(err: unknown): { status: number; errorCode: string;
   return { status: 502, errorCode: 'unavailable', message: msg };
 }
 
+function getClientIp(req: express.Request): string {
+  // Relies on Express `app.set('trust proxy', 1)` (Render single reverse-proxy hop) instead of raw X-Forwarded-For parsing.
+  const rawIp = req.ip || req.socket?.remoteAddress || '';
+  const normalized = rawIp.replace(/^::ffff:/i, '').trim();
+  return normalized || 'unknown';
+}
+
+interface RateLimitConfig {
+  name: string;
+  windowMs: number;
+  maxRequests: number;
+}
+
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+/**
+ * Lightweight in-memory fixed-window per-IP rate limiter.
+ * Limitation: Counters live in Node process memory, so they reset on server restart/deploy
+ * and are not shared across multiple horizontal server instances.
+ */
+function createInMemoryRateLimiter(config: RateLimitConfig): express.RequestHandler {
+  const buckets = new Map<string, RateLimitEntry>();
+  const MAX_ENTRIES = 5000;
+
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of buckets.entries()) {
+      if (entry.resetAt <= now) {
+        buckets.delete(key);
+      }
+    }
+  }, Math.min(config.windowMs, 60_000));
+  cleanupTimer.unref?.();
+
+  return (req, res, next) => {
+    try {
+      const now = Date.now();
+      const ip = getClientIp(req);
+      const existing = buckets.get(ip);
+
+      let entry: RateLimitEntry;
+      if (!existing || existing.resetAt <= now) {
+        if (buckets.size >= MAX_ENTRIES) {
+          for (const [key, val] of buckets.entries()) {
+            if (val.resetAt <= now) buckets.delete(key);
+          }
+          if (buckets.size >= MAX_ENTRIES) {
+            const oldestKey = buckets.keys().next().value;
+            if (oldestKey) buckets.delete(oldestKey);
+          }
+        }
+        entry = { count: 1, resetAt: now + config.windowMs };
+        buckets.set(ip, entry);
+      } else {
+        existing.count += 1;
+        entry = existing;
+      }
+
+      const remaining = Math.max(0, config.maxRequests - entry.count);
+      const resetSeconds = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+
+      res.setHeader('RateLimit-Limit', String(config.maxRequests));
+      res.setHeader('RateLimit-Remaining', String(remaining));
+      res.setHeader('RateLimit-Reset', String(resetSeconds));
+      res.setHeader('X-RateLimit-Limit', String(config.maxRequests));
+      res.setHeader('X-RateLimit-Remaining', String(remaining));
+      res.setHeader('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
+
+      if (entry.count > config.maxRequests) {
+        res.setHeader('Retry-After', String(resetSeconds));
+        console.warn(`[RateLimit] ${config.name} limit exceeded`);
+        res.status(429).json({
+          ok: false,
+          errorCode: 'rate_limit',
+          error: 'Too many requests. Please wait a moment and try again.',
+          retryAfterSeconds: resetSeconds,
+        });
+        return;
+      }
+
+      next();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[RateLimit] Limiter fallback on ${config.name}: ${msg}`);
+      next();
+    }
+  };
+}
+
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
+
+  const chatRateLimiter = createInMemoryRateLimiter({
+    name: 'gemini-chat',
+    windowMs: 60_000,
+    maxRequests: 20,
+  });
+
+  const ttsRateLimiter = createInMemoryRateLimiter({
+    name: 'tts',
+    windowMs: 60_000,
+    maxRequests: 30,
+  });
 
   app.get('/api/health', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -428,7 +533,7 @@ async function startServer() {
     res.json(payload);
   });
 
-  app.post('/api/gemini/chat', async (req, res) => {
+  app.post('/api/gemini/chat', chatRateLimiter, async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       res.status(503).json({
@@ -570,7 +675,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/tts', async (req, res) => {
+  app.post('/api/tts', ttsRateLimiter, async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     const body = req.body ?? {};
     const rawText = typeof body.text === 'string' ? body.text.trim() : '';
